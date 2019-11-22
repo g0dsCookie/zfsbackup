@@ -1,0 +1,24 @@
+import xml.etree.ElementTree as ET
+from typing import List
+
+from zfsbackup.helpers import get_boolean
+from zfsbackup.job.base import JobBase
+from zfsbackup.job.snapshot import Snapshot
+from zfsbackup.job.copy import Copy
+
+
+_jobmap = {
+    "snapshot": Snapshot,
+    "copy": Copy,
+}
+
+
+def _parse_single(cfg: ET.Element, ctor) -> JobBase:
+    name = cfg.attrib["name"]
+    enabled = get_boolean(cfg.attrib.get("enabled", "true"))
+    return ctor(name, enabled, cfg)
+
+
+def parse_xml(cfg: ET.Element) -> List[JobBase]:
+    return list([_parse_single(v, Snapshot) for v in cfg.findall("snapshot")] +
+                [_parse_single(v, Copy) for v in cfg.findall("copy")])

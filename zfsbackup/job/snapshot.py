@@ -1,0 +1,104 @@
+import xml.etree.ElementTree as ET
+
+import datetime
+import dateutil.relativedelta as RD
+
+from zfsbackup.helpers import get_boolean, missing_option
+from zfsbackup.job.base import JobBase, JobType
+from zfsbackup.runner.zfs import ZFS
+
+
+class Snapshot(JobBase):
+    def __init__(self, name: str, enabled: bool, cfg: ET.Element):
+        super().__init__(name, JobType.snapshot, enabled)
+
+        pool = cfg.find("pool")
+        dataset = cfg.find("dataset")
+        keep = cfg.find("keep")
+        squash = cfg.find("squash")
+        recursive = cfg.find("recursive")
+
+        if pool is None:
+            self.log.critical(missing_option, "pool")
+            exit(1)
+        self._pool = pool.text
+
+        if dataset is None:
+            self.log.critical(missing_option, "dataset")
+            exit(1)
+        self._dataset = dataset.text
+
+        if keep is None:
+            self._keep = None
+        else:
+            attr = keep.attrib
+            self._keep = RD.relativedelta(years=int(attr.get("years", 0)),
+                                          months=int(attr.get("months", 0)),
+                                          days=int(attr.get("days", 0)),
+                                          minutes=int(attr.get("minutes", 0)))
+
+        self._squash = False if squash is None else get_boolean(squash.text)
+        self._recursive = (False if recursive is None
+                           else get_boolean(recursive.text))
+
+    @property
+    def pool(self): return self._pool
+
+    @property
+    def dataset(self): return ZFS.join(self._pool, self._dataset)
+
+    @property
+    def keep(self): return self._keep
+
+    @property
+    def squash(self): return self._squash
+
+    def _get_time(self, now=None):
+        if not now:
+            now = datetime.datetime.now().utcnow()
+        return now.strftime("%Y%m%d%H%M")
+
+    def _parse_time(self, date):
+        return datetime.datetime.strptime(date, "%Y%m%d%H%M")
+
+    def snapshot(self, zfs: ZFS, now: datetime.datetime):
+        self.log.info("Taking snapshot of %s", self.dataset)
+
+        if not zfs.has_dataset(self.dataset):
+            self.log.error("Dataset '%s' does not exist!", self.dataset)
+            return False
+        zfs.snapshot(self.dataset, self._get_time(now),
+                     recurse=self._recursive)
+
+    def clean(self, zfs: ZFS, now: datetime.datetime):
+        self.log.info("Cleaning snapshots of %s", self.dataset)
+
+        keep_until = now - self.keep
+        to_delete = []
+        previous = ""
+
+        snapshots = zfs.datasets(dataset=self.dataset, snapshot=True,
+                                 options=["name"], sort="name")
+        for snapshot in snapshots:
+            name = snapshot["name"].split("@")[1]
+            time = self._parse_time(name)
+
+            if time < keep_until:
+                self.log.info("%s marked for deletion: Too old", name)
+                to_delete.append(name)
+                continue
+
+            if not self.squash:
+                continue
+            if not previous:
+                previous = name
+                continue
+
+            if not zfs.diff_snapshots(self.dataset, previous, name):
+                self.log.info("%s marked for deletion: Same as %s",
+                              name, previous)
+                continue
+            previous = name
+
+        for snapshot in to_delete:
+            zfs.destroy(self.dataset, snapshot=snapshot)
