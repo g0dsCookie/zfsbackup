@@ -6,27 +6,22 @@ import dateutil.relativedelta as RD
 from zfsbackup.helpers import get_boolean, missing_option
 from zfsbackup.job.base import JobBase, JobType
 from zfsbackup.runner.zfs import ZFS
+from zfsbackup.models.dataset import Dataset
 
 
 class Snapshot(JobBase):
     def __init__(self, name: str, enabled: bool, cfg: ET.Element):
         super().__init__(name, JobType.snapshot, enabled)
 
-        pool = cfg.find("pool")
-        dataset = cfg.find("dataset")
+        target = cfg.find("target")
         keep = cfg.find("keep")
         squash = cfg.find("squash")
         recursive = cfg.find("recursive")
 
-        if pool is None:
-            self.log.critical(missing_option, "pool")
+        if target is None:
+            self.log.critical(missing_option, "target")
             exit(1)
-        self._pool = pool.text
-
-        if dataset is None:
-            self.log.critical(missing_option, "dataset")
-            exit(1)
-        self._dataset = dataset.text
+        self._dataset = Dataset(target)
 
         if keep is None:
             self._keep = None
@@ -43,10 +38,7 @@ class Snapshot(JobBase):
         self._exists: bool = None
 
     @property
-    def pool(self): return self._pool
-
-    @property
-    def dataset(self): return ZFS.join(self._pool, self._dataset)
+    def dataset(self): return self._dataset
 
     @property
     def keep(self): return self._keep
@@ -65,22 +57,22 @@ class Snapshot(JobBase):
     def _check(self, zfs: ZFS):
         if self._exists is not None:
             return self._exists
-        self._exists = zfs.has_dataset(self.dataset)
+        self._exists = zfs.has_dataset(self.dataset.joined)
         if not self._exists:
-            self.log.error("Dataset '%s' does not exist!", self.dataset)
+            self.log.error("Dataset '%s' does not exist!", self.dataset.joined)
         return self._exists
 
     def snapshot(self, zfs: ZFS, now: datetime.datetime):
-        self.log.info("Taking snapshot of %s", self.dataset)
+        self.log.info("Taking snapshot of %s", self.dataset.joined)
 
         if not self._check(zfs):
             return
 
-        zfs.snapshot(self.dataset, self._get_time(now),
+        zfs.snapshot(self.dataset.joined, self._get_time(now),
                      recurse=self._recursive)
 
     def clean(self, zfs: ZFS, now: datetime.datetime):
-        self.log.info("Cleaning snapshots of %s", self.dataset)
+        self.log.info("Cleaning snapshots of %s", self.dataset.joined)
 
         if not self._check(zfs):
             return
@@ -89,7 +81,7 @@ class Snapshot(JobBase):
         to_delete = []
         previous = ""
 
-        snapshots = zfs.datasets(dataset=self.dataset, snapshot=True,
+        snapshots = zfs.datasets(dataset=self.dataset.joined, snapshot=True,
                                  options=["name"], sort="name")
         for snapshot in snapshots:
             name = snapshot["name"].split("@")[1]
@@ -106,11 +98,11 @@ class Snapshot(JobBase):
                 previous = name
                 continue
 
-            if not zfs.diff_snapshots(self.dataset, previous, name):
+            if not zfs.diff_snapshots(self.dataset.joined, previous, name):
                 self.log.info("%s marked for deletion: Same as %s",
                               name, previous)
                 continue
             previous = name
 
         for snapshot in to_delete:
-            zfs.destroy(self.dataset, snapshot=snapshot)
+            zfs.destroy(self.dataset.joined, snapshot=snapshot)
