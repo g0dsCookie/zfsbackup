@@ -35,17 +35,19 @@ class Config:
         cfg = ET.parse(file)
         root = cfg.getroot()
 
-        zfs = root.find("zfs")
-        zpool = root.find("zpool")
-        sudo = root.find("sudo")
+        commands = root.find("commands")
         jobs = root.find("jobs")
 
-        if zfs is not None:
-            self._zfs = zfs.text
-        if zpool is not None:
-            self._zpool = zpool.text
-        if sudo is not None:
-            self._sudo = sudo.text
+        if commands is not None:
+            for cmd in commands:
+                if cmd.tag == "zfs":
+                    self._zfs = cmd.text
+                elif cmd.tag == "zpool":
+                    self._zpool = cmd.text
+                elif cmd.tag == "sudo":
+                    self._sudo = cmd.text
+                else:
+                    self._log.debug("Ignoring extra command: %s", cmd.text)
 
         if jobs is None:
             self._log.critical("No jobs defined.")
