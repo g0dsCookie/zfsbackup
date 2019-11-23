@@ -40,6 +40,7 @@ class Snapshot(JobBase):
         self._squash = False if squash is None else get_boolean(squash.text)
         self._recursive = (False if recursive is None
                            else get_boolean(recursive.text))
+        self._exists: bool = None
 
     @property
     def pool(self): return self._pool
@@ -61,17 +62,28 @@ class Snapshot(JobBase):
     def _parse_time(self, date):
         return datetime.datetime.strptime(date, "%Y%m%d%H%M")
 
+    def _check(self, zfs: ZFS):
+        if self._exists is not None:
+            return self._exists
+        self._exists = zfs.has_dataset(self.dataset)
+        if not self._exists:
+            self.log.error("Dataset '%s' does not exist!", self.dataset)
+        return self._exists
+
     def snapshot(self, zfs: ZFS, now: datetime.datetime):
         self.log.info("Taking snapshot of %s", self.dataset)
 
-        if not zfs.has_dataset(self.dataset):
-            self.log.error("Dataset '%s' does not exist!", self.dataset)
-            return False
+        if not self._check(zfs):
+            return
+
         zfs.snapshot(self.dataset, self._get_time(now),
                      recurse=self._recursive)
 
     def clean(self, zfs: ZFS, now: datetime.datetime):
         self.log.info("Cleaning snapshots of %s", self.dataset)
+
+        if not self._check(zfs):
+            return
 
         keep_until = now - self.keep
         to_delete = []
