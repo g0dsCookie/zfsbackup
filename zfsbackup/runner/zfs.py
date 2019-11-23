@@ -17,13 +17,14 @@ class ZFS(RunnerBase):
 
     def datasets(self, dataset: str = None, recurse=False,
                  snapshot=False, options: List[str] = None,
-                 sort: str = None) -> List[Dict[str, Union[str, int]]]:
+                 sort: str = None,
+                 sort_ascending=False) -> List[Dict[str, Union[str, int]]]:
         if not options:
             options = ["name", "used", "available", "referenced", "mountpoint"]
         args = [
             "list", "-H",
             "-o", ",".join(options),
-            "-S", sort if sort else "name"
+            "-s" if sort_ascending else "-S", sort if sort else "name"
         ]
         if snapshot:
             args += ["-t", "snapshot"]
