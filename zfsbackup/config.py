@@ -47,7 +47,8 @@ class Config:
                 elif cmd.tag == "sudo":
                     self._sudo = cmd.text
                 else:
-                    self._log.debug("Ignoring extra command: %s", cmd.text)
+                    self._log.debug("Ignoring extra command: %s",
+                                    cmd.attrib["name"])
 
         if jobs is None:
             self._log.critical("No jobs defined.")
