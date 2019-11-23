@@ -59,14 +59,14 @@ class ZfsBackupCli:
         now = datetime.now().utcnow()
 
         for job in self._cfg.list_jobs(JobType.snapshot, self._args.jobs):
-            print(job._pool, job._dataset)
             if not self._args.clean_only:
                 job.snapshot(self._zfs, now)
             if not self._args.snap_only:
                 job.clean(self._zfs, now)
 
     def copy(self):
-        raise NotImplementedError()
+        for job in self._cfg.list_jobs(JobType.copy, self._args.jobs):
+            job.run(self._zfs)
 
     def run(self):
         getattr(self, self._args.action)()
