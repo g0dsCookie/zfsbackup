@@ -12,7 +12,9 @@
     </commands>
 
     <jobs>
-        <snapshot name="users" enabled="True">
+        <snapshot name="users">
+            <enabled />
+
             <!-- pool and dataset definitions -->
             <target pool="data" dataset="users" />
 
@@ -23,19 +25,21 @@
                 reap away "empty" snapshots
                 e.g. there were no changes since last snapshot
             -->
-            <squash>True</squash>
+            <squash />
 
             <!-- recursive snapshots -->
-            <recursive>True</recursive>
+            <recursive />
         </snapshot>
-        <copy name="users" enabled="False">
+        <copy name="users">
+            <enabled />
+
             <!-- source pool and dataset -->
             <source pool="data" dataset="users" />
 
             <!-- destination pool and dataset -->
             <destination pool="data" dataset="backup/users">
                 <!-- rollback destination to most recent snapshot (zfs recv -F) -->
-                <rollback>True</rollback>
+                <rollback />
 
                 <!-- overwrite/ignore properties on receive -->
                 <properties>
@@ -51,10 +55,10 @@
             </destination>
 
             <!-- replicate dataset (use zfs send -R) -->
-            <replicate>True</replicate>
+            <replicate />
 
             <!-- use incremental streams (zfs send -I ...) -->
-            <incremental>True</incremental>
+            <incremental />
         </copy>
     </jobs>
 </zfsbackup>

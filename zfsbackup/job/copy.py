@@ -33,10 +33,8 @@ class Copy(JobBase):
             self.log.critical(str(e))
             exit(1)
 
-        self._replicate = (False if replicate is None
-                           else get_boolean(replicate.text))
-        self._incremental = (False if incremental is None
-                             else get_boolean(incremental.text))
+        self._replicate = replicate is not None
+        self._incremental = incremental is not None
         self._exists: bool = None
 
     @property

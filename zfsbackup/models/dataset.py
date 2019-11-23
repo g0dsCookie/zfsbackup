@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 
-from zfsbackup.helpers import missing_attribute, get_boolean
+from zfsbackup.helpers import missing_attribute
 from zfsbackup.runner.zfs import ZFS
 
 
@@ -31,8 +31,7 @@ class DestinationDataset(Dataset):
         rollback = cfg.find("rollback")
         properties = cfg.find("properties")
 
-        self._rollback = (False if rollback is None
-                          else get_boolean(rollback.text))
+        self._rollback = rollback is not None
 
         self._overwrite = {}
         self._ignore = []

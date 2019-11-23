@@ -32,9 +32,8 @@ class Snapshot(JobBase):
                                           days=int(attr.get("days", 0)),
                                           minutes=int(attr.get("minutes", 0)))
 
-        self._squash = False if squash is None else get_boolean(squash.text)
-        self._recursive = (False if recursive is None
-                           else get_boolean(recursive.text))
+        self._squash = squash is not None
+        self._recursive = recursive is not None
         self._exists: bool = None
 
     @property
