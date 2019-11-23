@@ -30,6 +30,19 @@
             <!-- recursive snapshots -->
             <recursive />
         </snapshot>
+        <snapshot name="snaponly">
+            <target pool="data" dataset="snaponly" />
+            <keep years="1" />
+            <enabled />
+            <snaponly />
+        </snapshot>
+        <snapshot name="cleanonly">
+            <target pool="data" dataset="cleanonly" />
+            <keep days="1" />
+            <enabled />
+            <cleanonly />
+        </snapshot>
+
         <copy name="users">
             <enabled />
 
