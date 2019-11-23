@@ -10,7 +10,7 @@ class RunnerBase(metaclass=abc.ABCMeta):
         self._prog = prog
         self._sudo = sudo
         self._really = really
-        self._log = logging.getLogger(self.__class__.__name__)
+        self._log = logging.getLogger("Runner." + self.__class__.__name__)
 
     @property
     def really(self): return self._really
