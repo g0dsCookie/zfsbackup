@@ -17,6 +17,8 @@ class Snapshot(JobBase):
         keep = cfg.find("keep")
         squash = cfg.find("squash")
         recursive = cfg.find("recursive")
+        snaponly = cfg.find("snaponly")
+        cleanonly = cfg.find("cleanonly")
 
         if target is None:
             self.log.critical(missing_option, "target")
@@ -34,7 +36,13 @@ class Snapshot(JobBase):
 
         self._squash = squash is not None
         self._recursive = recursive is not None
+        self._snaponly = snaponly is not None
+        self._cleanonly = cleanonly is not None
         self._exists: bool = None
+
+        if self._snaponly and self._cleanonly:
+            self.log.warn("<snaponly/> and <cleanonly/> given."
+                          + " Will do nothing.")
 
     @property
     def dataset(self): return self._dataset
@@ -44,6 +52,12 @@ class Snapshot(JobBase):
 
     @property
     def squash(self): return self._squash
+
+    @property
+    def snaponly(self): return self._snaponly
+
+    @property
+    def cleanonly(self): return self._cleanonly
 
     def _get_time(self, now=None):
         if not now:
@@ -62,6 +76,9 @@ class Snapshot(JobBase):
         return self._exists
 
     def snapshot(self, zfs: ZFS, now: datetime.datetime):
+        if not self.enabled or self.cleanonly:
+            return
+
         self.log.info("Taking snapshot of %s", self.dataset.joined)
 
         if not self._check(zfs):
@@ -71,6 +88,9 @@ class Snapshot(JobBase):
                      recurse=self._recursive)
 
     def clean(self, zfs: ZFS, now: datetime.datetime):
+        if not self.enabled or self.snaponly:
+            return
+
         self.log.info("Cleaning snapshots of %s", self.dataset.joined)
 
         if not self._check(zfs):
