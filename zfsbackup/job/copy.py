@@ -35,7 +35,6 @@ class Copy(JobBase):
 
         self._replicate = replicate is not None
         self._incremental = incremental is not None
-        self._exists: bool = None
 
     @property
     def source(self): return self._source
@@ -49,25 +48,16 @@ class Copy(JobBase):
     @property
     def incremental(self): return self._incremental
 
-    def _check(self, zfs: ZFS):
-        if self._exists is not None:
-            return self._exists
-        if not zfs.has_dataset(self.source.joined):
-            self._exists = False
-            self.log.error("Source dataset '%s' does not exist!",
-                           self.source.joined)
-            return False
-        self._exists = zfs.has_dataset(self.destination.joined)
-        if not self._exists:
-            self.log.error("Destination dataset '%s' does not exist!",
-                           self.destination.joined)
-        return self._exists
-
     def run(self, zfs: ZFS):
         self.log.info("Copying %s to %s",
                       self.source.joined, self.destination.joined)
 
-        if not self._check(zfs):
+        if not self._check_dataset(zfs, self.source.joined,
+                                   msg="Source dataset '%s' does not exist!"):
+            return
+        if not self._check_dataset(
+                zfs, self.destination.joined,
+                msg="Destination dataset '%s' does not exist!"):
             return
 
         ssnap = zfs.datasets(dataset=self.source.joined, snapshot=True,

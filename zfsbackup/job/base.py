@@ -41,13 +41,14 @@ class JobBase(metaclass=abc.ABCMeta):
         return (datetime.datetime.strptime(time, "%Y%m%d%H%M"),
                 time.endswith("-incr"))
 
-    def _check_dataset(self, zfs: ZFS, dataset: str):
+    def _check_dataset(self, zfs: ZFS, dataset: str,
+                       msg="Dataset '%s' does not exist!"):
         if dataset in self._exists:
             return self._exists[dataset]
         exists = zfs.has_dataset(dataset)
         self._exists[dataset] = exists
         if not exists:
-            self.log.error("Dataset '%s' does not exist!", dataset)
+            self.log.error(msg, dataset)
         return exists
 
     @abc.abstractmethod
