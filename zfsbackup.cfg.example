@@ -13,35 +13,20 @@
 
     <jobs>
         <snapshot name="users">
-            <enabled />
-
             <!-- pool and dataset definitions -->
             <target pool="data" dataset="users" />
-
-            <!-- how old the oldest snapshot should be -->
-            <keep months="1" />
-
-            <!--
-                reap away "empty" snapshots
-                e.g. there were no changes since last snapshot
-            -->
-            <squash />
+            <enabled />
 
             <!-- recursive snapshots -->
-            <recursive />
+            <!-- <recursive /> -->
         </snapshot>
-        <snapshot name="snaponly">
-            <target pool="data" dataset="snaponly" />
-            <keep years="1" />
+
+        <clean name="users">
+            <target pool="data" dataset="users" />
             <enabled />
-            <snaponly />
-        </snapshot>
-        <snapshot name="cleanonly">
-            <target pool="data" dataset="cleanonly" />
-            <keep days="1" />
-            <enabled />
-            <cleanonly />
-        </snapshot>
+            <keep months="1" />
+            <squash />
+        </clean>
 
         <copy name="users">
             <enabled />
