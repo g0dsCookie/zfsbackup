@@ -6,7 +6,6 @@ from zfsbackup.job.base import JobBase, JobType
 from zfsbackup.job.snapshot import Snapshot
 from zfsbackup.job.clean import Clean
 from zfsbackup.job.copy import Copy
-from zfsbackup.job.loader import parse_xml
 
 
 class Config:
