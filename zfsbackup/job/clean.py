@@ -58,7 +58,7 @@ class Clean(JobBase):
         snapshots = zfs.datasets(dataset=self.dataset.joined, snapshot=True,
                                  options=["name"], sort="name")
         for snapshot in snapshots:
-            name = snapshots["name"].split("@")[1]
+            name = snapshot["name"].split("@")[1]
             (time, keep) = self._parse_time(name)
 
             if keep:

@@ -1,8 +1,11 @@
 import logging
-from typing import List
+from typing import List, Dict
 import xml.etree.ElementTree as ET
 
 from zfsbackup.job.base import JobBase, JobType
+from zfsbackup.job.snapshot import Snapshot
+from zfsbackup.job.clean import Clean
+from zfsbackup.job.copy import Copy
 from zfsbackup.job.loader import parse_xml
 
 
@@ -11,7 +14,7 @@ class Config:
         self._zfs = "/usr/bin/zfs"
         self._zpool = "/usr/bin/zpool"
         self._sudo = "/usr/bin/sudo"
-        self._jobs: List[JobBase] = []
+        self._jobs: Dict[JobType, List[JobBase]] = {}
         self._log = logging.getLogger("Config")
 
     @property
@@ -28,8 +31,29 @@ class Config:
 
     def list_jobs(self, typ: JobType, names: List[str]) -> List[JobBase]:
         list_all = "all" in names
-        return [job for job in self.jobs if (job.type == typ and
-                                             (list_all or job.name in names))]
+        for job in self._jobs[typ]:
+            if list_all or job.name in names:
+                yield job
+
+    def _parse_jobtype(self, cfg: List[ET.Element], ctor):
+        for v in cfg:
+            name = v.attrib["name"]
+            enabled = v.find("enabled")
+            yield ctor(name, enabled is not None, v)
+
+    def _parse_jobs(self, cfg: ET.Element):
+        jobtypes = {
+            JobType.snapshot: Snapshot,
+            JobType.clean: Clean,
+            JobType.copy: Copy
+        }
+        for typ, ctor in jobtypes.items():
+            name = typ.name
+            self._log.debug("Loading '%s' jobs...", name)
+            configs = cfg.findall(name)
+            jobs = list(self._parse_jobtype(configs, ctor))
+            self._log.debug("Found %d jobs for %s", len(jobs), name)
+            self._jobs[typ] = jobs
 
     def load(self, file: str):
         cfg = ET.parse(file)
@@ -53,4 +77,4 @@ class Config:
         if jobs is None:
             self._log.critical("No jobs defined.")
             exit(0)
-        self._jobs = parse_xml(jobs)
+        self._parse_jobs(jobs)

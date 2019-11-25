@@ -22,11 +22,6 @@ class Snapshot(JobBase):
         self._dataset = Dataset(target)
 
         self._recursive = recursive is not None
-        self._exists: bool = None
-
-        if self._snaponly and self._cleanonly:
-            self.log.warn("<snaponly/> and <cleanonly/> given."
-                          + " Will do nothing.")
 
     @property
     def dataset(self): return self._dataset
@@ -40,7 +35,7 @@ class Snapshot(JobBase):
 
         self.log.info("Taking snapshot of %s", self.dataset.joined)
 
-        if not self._check(zfs):
+        if not self._check_dataset(zfs, self.dataset.joined):
             return
 
         zfs.snapshot(self.dataset.joined, self._get_time(now),

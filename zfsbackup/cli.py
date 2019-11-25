@@ -23,19 +23,16 @@ class ZfsBackupCli:
                                         help="Action to execute.",
                                         dest="action")
 
-        snapshot = actions.add_parser("snapshot",
-                                      description="Take a snapshot of target.")
-        snapshot.add_argument("--snap-only", action="store_true",
-                              help="Only run snapshot and exit.")
-        snapshot.add_argument("--clean-only", action="store_true",
-                              help="Only run cleanup and exit.")
-        snapshot.add_argument("jobs", metavar="JOB", type=str, nargs="+",
-                              help="Snapshot specified jobs.")
+        action_list = {
+            "snapshot": "Take a snapshot of a target.",
+            "clean": "Cleanup snapshots of a target.",
+            "copy": "Copy specified target to it's destination.",
+        }
 
-        copy = actions.add_parser("copy",
-                                  description="Copy dataset target.")
-        copy.add_argument("jobs", metavar="JOB", type=str, nargs="+",
-                          help="Copy specified target.")
+        for actionname, description in action_list.items():
+            action = actions.add_parser(actionname, description=description)
+            action.add_argument("jobs", metavar="JOB", type=str, nargs="+",
+                                help="Target(s) to run action on")
 
         self._args = parser.parse_args()
         if not self._args.action:
@@ -57,12 +54,13 @@ class ZfsBackupCli:
 
     def snapshot(self):
         now = datetime.now().utcnow()
-
         for job in self._cfg.list_jobs(JobType.snapshot, self._args.jobs):
-            if not self._args.clean_only:
-                job.snapshot(self._zfs, now)
-            if not self._args.snap_only:
-                job.clean(self._zfs, now)
+            job.run(self._zfs, now)
+
+    def clean(self):
+        now = datetime.now().utcnow()
+        for job in self._cfg.list_jobs(JobType.clean, self._args.jobs):
+            job.run(self._zfs, now)
 
     def copy(self):
         for job in self._cfg.list_jobs(JobType.copy, self._args.jobs):
