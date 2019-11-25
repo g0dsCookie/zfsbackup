@@ -1,14 +1,13 @@
 import xml.etree.ElementTree as ET
 
 from zfsbackup.job.base import JobBase, JobType
-from zfsbackup.helpers import get_boolean, missing_option, missing_attribute
-from zfsbackup.runner.zfs import ZFS
+from zfsbackup.helpers import missing_option
 from zfsbackup.models.dataset import Dataset, DestinationDataset
 
 
 class Copy(JobBase):
-    def __init__(self, name: str, enabled: bool, cfg: ET.Element):
-        super().__init__(name, JobType.copy, enabled)
+    def __init__(self, name: str, enabled: bool, globalCfg, cfg: ET.Element):
+        super().__init__(name, JobType.copy, enabled, globalCfg)
 
         source = cfg.find("source")
         destination = cfg.find("destination")
@@ -48,21 +47,21 @@ class Copy(JobBase):
     @property
     def incremental(self): return self._incremental
 
-    def run(self, zfs: ZFS):
+    def run(self):
         self.log.info("Copying %s to %s",
                       self.source.joined, self.destination.joined)
 
-        if not self._check_dataset(zfs, self.source.joined,
+        if not self._check_dataset(self.source.joined,
                                    msg="Source dataset '%s' does not exist!"):
             return
         if not self._check_dataset(
-                zfs, self.destination.joined,
+                self.destination.joined,
                 msg="Destination dataset '%s' does not exist!"):
             return
 
-        ssnap = zfs.datasets(dataset=self.source.joined, snapshot=True,
-                             options=["name"], sort="name",
-                             sort_ascending=True)
+        ssnap = self.zfs.datasets(dataset=self.source.joined, snapshot=True,
+                                  options=["name"], sort="name",
+                                  sort_ascending=True)
         if not ssnap:
             self.log.error("Source '%s' has no snapshots, cannot copy!",
                            self.source.joined)
@@ -70,9 +69,9 @@ class Copy(JobBase):
         ssnap = list([s["name"].split("@")[1] for s in ssnap])
 
         if self.incremental:
-            dsnap = zfs.datasets(dataset=self.destination.joined,
-                                 snapshot=True, options=["name"], sort="name",
-                                 sort_ascending=True)
+            dsnap = self.zfs.datasets(dataset=self.destination.joined,
+                                      snapshot=True, options=["name"],
+                                      sort="name", sort_ascending=True)
             if not dsnap:
                 self.log.info("Destination '%s' has no snapshots,"
                               + " cannot do incremental copy!",
@@ -102,10 +101,16 @@ class Copy(JobBase):
                            + " for incremental copy",
                            self.destination.joined, dsnap)
 
-        zfs.copy(source=self.source.joined, snapshot=ssnap,
-                 target=self.destination.joined,
-                 incremental=dsnap,
-                 replicate=self.replicate,
-                 rollback=self.destination.rollback,
-                 overwrites=self.destination.overwrite_properties,
-                 ignores=self.destination.ignore_properties)
+        self.zfs.copy(source=self.source.joined, snapshot=ssnap,
+                      target=self.destination.joined,
+                      incremental=dsnap,
+                      replicate=self.replicate,
+                      rollback=self.destination.rollback,
+                      overwrites=self.destination.overwrite_properties,
+                      ignores=self.destination.ignore_properties)
+
+        if self.really:
+            with self.cache as cache:
+                cache.snapshot_keep_increase(self.source.joined, ssnap)
+                if dsnap:
+                    cache.snapshot_keep_decrease(self.source.joined, dsnap)

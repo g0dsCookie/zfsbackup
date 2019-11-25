@@ -47,24 +47,26 @@ class ZfsBackupCli:
         self._log = logging.getLogger("zfsbackup")
 
         self._cfg = Config()
-        self._cfg.load(self._args.config)
+        self._cfg.load(self._args.config, self._args.really)
 
-        self._zfs = ZFS(zfs=self._cfg.zfs, sudo=self._cfg.sudo,
-                        really=self._args.really)
+        with self._cfg.cache as cache:
+            if cache.db_version == -1:
+                self._log.info("Creating new cache file")
+                cache.create_tables()
 
     def snapshot(self):
         now = datetime.now().utcnow()
         for job in self._cfg.list_jobs(JobType.snapshot, self._args.jobs):
-            job.run(self._zfs, now)
+            job.run(now)
 
     def clean(self):
         now = datetime.now().utcnow()
         for job in self._cfg.list_jobs(JobType.clean, self._args.jobs):
-            job.run(self._zfs, now)
+            job.run(now)
 
     def copy(self):
         for job in self._cfg.list_jobs(JobType.copy, self._args.jobs):
-            job.run(self._zfs)
+            job.run()
 
     def run(self):
         getattr(self, self._args.action)()

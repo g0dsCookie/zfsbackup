@@ -5,13 +5,12 @@ import dateutil.relativedelta as RD
 
 from zfsbackup.helpers import missing_option
 from zfsbackup.job.base import JobBase, JobType
-from zfsbackup.runner.zfs import ZFS
 from zfsbackup.models.dataset import Dataset
 
 
 class Clean(JobBase):
-    def __init__(self, name: str, enabled: bool, cfg: ET.Element):
-        super().__init__(name, JobType.copy, enabled)
+    def __init__(self, name: str, enabled: bool, globalCfg, cfg: ET.Element):
+        super().__init__(name, JobType.copy, enabled, globalCfg)
 
         target = cfg.find("target")
         keep = cfg.find("keep")
@@ -43,31 +42,39 @@ class Clean(JobBase):
     @property
     def squash(self): return self._squash
 
-    def run(self, zfs: ZFS, now: datetime.datetime):
+    def run(self, now: datetime.datetime):
         if not self.enabled:
             return
 
         self.log.info("Cleaning snapshots of %s", self.dataset.joined)
-        if not self._check_dataset(zfs, self.dataset.joined):
+        if not self._check_dataset(self.dataset.joined):
             return
 
         keep_until = now - self.keep
         to_delete = []
         previous = ""
+        cache = self.cache
+        cache.open()
 
-        snapshots = zfs.datasets(dataset=self.dataset.joined, snapshot=True,
-                                 options=["name"], sort="name",
-                                 sort_ascending=True)
+        snapshots = self.zfs.datasets(dataset=self.dataset.joined,
+                                      snapshot=True,
+                                      options=["name"], sort="name",
+                                      sort_ascending=True)
         for snapshot in snapshots:
             name = snapshot["name"].split("@")[1]
             time = self._parse_time(name)
 
-            # if keep:
-            #     self.log.info("%s skipped: Marked for incremental copies")
-            #    continue
+            snapshot_copy_count = cache.snapshot_keep(self.dataset.joined,
+                                                      name)
+            self.log.debug("%s@%s has a total copy count of %d",
+                           self.dataset.joined, name, snapshot_copy_count)
+            if snapshot_copy_count > 0:
+                self.log.info("%s@%s skipped: Marked for incremental copies",
+                              self.dataset.joined, name)
+                continue
 
             if time < keep_until:
-                self.log.info("%s marked for deletion:")
+                self.log.info("%s marked for deletion: Too old", name)
                 to_delete.append(name)
                 continue
 
@@ -77,12 +84,14 @@ class Clean(JobBase):
                 previous = name
                 continue
 
-            if zfs.diff_snapshots(self.dataset.joined, previous, name):
-                to_delete.append(name)
+            if not self.zfs.diff_snapshots(self.dataset.joined,
+                                           previous, name):
+                to_delete.append(previous)
                 self.log.info("%s marked for deletion: Same as %s",
-                              name, previous)
-                continue
+                              previous, name)
             previous = name
 
+        cache.close()
+
         for snapshot in to_delete:
-            zfs.destroy(self.dataset.joined, snapshot=snapshot)
+            self.zfs.destroy(self.dataset.joined, snapshot=snapshot)

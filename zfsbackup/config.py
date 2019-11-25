@@ -2,6 +2,8 @@ import logging
 from typing import List, Dict
 import xml.etree.ElementTree as ET
 
+from zfsbackup.cache import Cache
+from zfsbackup.runner.zfs import ZFS
 from zfsbackup.job.base import JobBase, JobType
 from zfsbackup.job.snapshot import Snapshot
 from zfsbackup.job.clean import Clean
@@ -10,23 +12,21 @@ from zfsbackup.job.copy import Copy
 
 class Config:
     def __init__(self):
-        self._zfs = "/usr/bin/zfs"
-        self._zpool = "/usr/bin/zpool"
-        self._sudo = "/usr/bin/sudo"
+        self._zfs: ZFS = None
+        # self._zpool = "/usr/bin/zpool"
+        self._really = False
+        self._cache = "/var/cache/zfsbackup/zfsbackup.sqlite"
         self._jobs: Dict[JobType, List[JobBase]] = {}
         self._log = logging.getLogger("Config")
-
-    @property
-    def jobs(self): return self._jobs
 
     @property
     def zfs(self): return self._zfs
 
     @property
-    def zpool(self): return self._zpool
+    def really(self): return self._really
 
     @property
-    def sudo(self): return self._sudo
+    def cache(self): return Cache(self._cache)
 
     def list_jobs(self, typ: JobType, names: List[str]) -> List[JobBase]:
         list_all = "all" in names
@@ -38,7 +38,7 @@ class Config:
         for v in cfg:
             name = v.attrib["name"]
             enabled = v.find("enabled")
-            yield ctor(name, enabled is not None, v)
+            yield ctor(name, enabled is not None, self, v)
 
     def _parse_jobs(self, cfg: ET.Element):
         jobtypes = {
@@ -54,24 +54,32 @@ class Config:
             self._log.debug("Found %d jobs for %s", len(jobs), name)
             self._jobs[typ] = jobs
 
-    def load(self, file: str):
+    def load(self, file: str, really: bool):
+        self._really = really
         cfg = ET.parse(file)
         root = cfg.getroot()
 
+        cache = root.find("cache")
         commands = root.find("commands")
         jobs = root.find("jobs")
+
+        zfs = "/usr/bin/zfs"
+        sudo = "/usr/bin/sudo"
+
+        if cache is not None:
+            self._cache = cache.text
 
         if commands is not None:
             for cmd in commands:
                 if cmd.tag == "zfs":
-                    self._zfs = cmd.text
-                elif cmd.tag == "zpool":
-                    self._zpool = cmd.text
+                    zfs = cmd.text
                 elif cmd.tag == "sudo":
-                    self._sudo = cmd.text
+                    sudo = cmd.text
                 else:
                     self._log.debug("Ignoring extra command: %s",
                                     cmd.attrib["name"])
+
+        self._zfs = ZFS(zfs=zfs, sudo=sudo, really=really)
 
         if jobs is None:
             self._log.critical("No jobs defined.")
