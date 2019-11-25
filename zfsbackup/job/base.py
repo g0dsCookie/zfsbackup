@@ -38,8 +38,7 @@ class JobBase(metaclass=abc.ABCMeta):
         return now.strftime("%Y%m%d%H%M")
 
     def _parse_time(self, time: str):
-        return (datetime.datetime.strptime(time, "%Y%m%d%H%M"),
-                time.endswith("-incr"))
+        return datetime.datetime.strptime(time, "%Y%m%d%H%M")
 
     def _check_dataset(self, zfs: ZFS, dataset: str,
                        msg="Dataset '%s' does not exist!"):

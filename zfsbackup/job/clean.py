@@ -60,11 +60,11 @@ class Clean(JobBase):
                                  sort_ascending=True)
         for snapshot in snapshots:
             name = snapshot["name"].split("@")[1]
-            (time, keep) = self._parse_time(name)
+            time = self._parse_time(name)
 
-            if keep:
-                self.log.info("%s skipped: Marked for incremental copies")
-                continue
+            # if keep:
+            #     self.log.info("%s skipped: Marked for incremental copies")
+            #    continue
 
             if time < keep_until:
                 self.log.info("%s marked for deletion:")
