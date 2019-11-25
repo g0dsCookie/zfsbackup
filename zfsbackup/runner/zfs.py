@@ -62,7 +62,7 @@ class ZFS(RunnerBase):
             "%s@%s" % (dataset, rsnap)
         ]
         (retcode, (stdout, stderr)) = self._run(args, readonly=True)
-        return retcode == 0 and stdout
+        return retcode == 0 and len(stdout) >= 1 and stdout[0]
 
     def copy(self, source: str, snapshot: str, target: str,
              incremental: str = None, replicate=False, rollback=False,
