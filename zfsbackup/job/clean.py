@@ -56,7 +56,8 @@ class Clean(JobBase):
         previous = ""
 
         snapshots = zfs.datasets(dataset=self.dataset.joined, snapshot=True,
-                                 options=["name"], sort="name")
+                                 options=["name"], sort="name",
+                                 sort_ascending=True)
         for snapshot in snapshots:
             name = snapshot["name"].split("@")[1]
             (time, keep) = self._parse_time(name)
@@ -76,7 +77,7 @@ class Clean(JobBase):
                 previous = name
                 continue
 
-            if not zfs.diff_snapshots(self.dataset.joined, previous, name):
+            if zfs.diff_snapshots(self.dataset.joined, previous, name):
                 to_delete.append(name)
                 self.log.info("%s marked for deletion: Same as %s",
                               name, previous)
