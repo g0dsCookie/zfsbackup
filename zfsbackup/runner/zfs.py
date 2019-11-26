@@ -112,7 +112,9 @@ class ZFS(RunnerBase):
             ret = [sender.wait(), receiver.wait()]
 
         msg = "%s process failed with return code %d:\n%s"
+        failed = ret[0] != 0 or ret[1] != 0
         if ret[0] != 0:
-            raise Exception(msg % ("Sender", ret[0], sstderr))
+            self._log.error(msg % ("Sender", ret[0], sstderr))
         if ret[1] != 0:
-            raise Exception(msg % ("Receiver", ret[1], rstderr))
+            self._log.error(msg % ("Receiver", ret[1], rstderr))
+        return failed
