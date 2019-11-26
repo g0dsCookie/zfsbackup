@@ -4,7 +4,6 @@ import logging
 import sys
 
 from zfsbackup.config import Config
-from zfsbackup.runner.zfs import ZFS
 from zfsbackup.job.base import JobType
 
 
