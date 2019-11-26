@@ -47,7 +47,7 @@ class Copy(JobBase):
     @property
     def incremental(self): return self._incremental
 
-    def run(self):
+    def run(self, *args, **kwargs):
         self.log.info("Copying %s to %s",
                       self.source.joined, self.destination.joined)
 

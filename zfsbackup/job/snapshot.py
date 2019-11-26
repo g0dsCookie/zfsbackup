@@ -26,7 +26,7 @@ class Snapshot(JobBase):
     @property
     def recursive(self): return self._recursive
 
-    def run(self, now: datetime.datetime):
+    def run(self, now: datetime.datetime, *args, **kwargs):
         if not self.enabled:
             return
 

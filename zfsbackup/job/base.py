@@ -81,5 +81,5 @@ class JobBase(metaclass=abc.ABCMeta):
                                  timeout=timeout)
 
     @abc.abstractmethod
-    def run(self):
+    def run(self, *args, **kwargs):
         raise NotImplementedError()
