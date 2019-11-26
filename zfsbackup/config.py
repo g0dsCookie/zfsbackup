@@ -4,10 +4,7 @@ import xml.etree.ElementTree as ET
 
 from zfsbackup.cache import Cache
 from zfsbackup.runner.zfs import ZFS
-from zfsbackup.job.base import JobBase, JobType
-from zfsbackup.job.snapshot import Snapshot
-from zfsbackup.job.clean import Clean
-from zfsbackup.job.copy import Copy
+from zfsbackup.job import JobBase, JobType, get_constructor
 
 
 class Config:
@@ -18,6 +15,7 @@ class Config:
         self._cache = "/var/cache/zfsbackup/zfsbackup.sqlite"
         self._lockdir = "/var/lock/zfsbackup"
         self._jobs: Dict[JobType, List[JobBase]] = {}
+        self._jobsets: Dict[str, List[JobBase]] = {}
         self._log = logging.getLogger("Config")
 
     @property
@@ -33,10 +31,36 @@ class Config:
     def lockdir(self): return self._lockdir
 
     def list_jobs(self, typ: JobType, names: List[str]) -> List[JobBase]:
-        list_all = "all" in names
+        if "all" in names:
+            return self._jobs[typ]
+        for name, jobset in self._jobsets.items():
+            if name in names:
+                names.remove(name)
+                for job in jobset:
+                    if job.type == typ:
+                        yield job
         for job in self._jobs[typ]:
-            if list_all or job.name in names:
+            if job.name in names:
+                names.remove(job.name)
                 yield job
+        if names:
+            self._log.warn("Unmatched job(set)s for %s: %s",
+                           typ.name, ", ".join(names))
+
+    def list_jobsets(self, names: List[str]) -> List[JobBase]:
+        if "all" in names:
+            for name, jobset in self._jobsets.items():
+                for job in jobset:
+                    yield job
+            return
+        for name, jobset in self._jobsets.items():
+            if name not in names:
+                continue
+            names.remove(name)
+            for job in jobset:
+                yield job
+        if names:
+            self._log.warn("Unmatched jobsets: %s", ", ".join(names))
 
     def _parse_jobtype(self, cfg: List[ET.Element], ctor):
         for v in cfg:
@@ -45,18 +69,63 @@ class Config:
             yield ctor(name, enabled is not None, self, v)
 
     def _parse_jobs(self, cfg: ET.Element):
-        jobtypes = {
-            JobType.snapshot: Snapshot,
-            JobType.clean: Clean,
-            JobType.copy: Copy
-        }
-        for typ, ctor in jobtypes.items():
+        for typ in JobType:
             name = typ.name
             self._log.debug("Loading '%s' jobs...", name)
             configs = cfg.findall(name)
-            jobs = list(self._parse_jobtype(configs, ctor))
+            jobs = list(self._parse_jobtype(configs, get_constructor(typ)))
             self._log.debug("Found %d jobs for %s", len(jobs), name)
             self._jobs[typ] = jobs
+
+    def _parse_jobsets(self, cfg: ET.Element):
+        for jobset in cfg.findall("jobset"):
+            name = jobset.attrib["name"]
+            self._log.debug("Loading jobset %s", name)
+            jobs = []
+            for jobcfg in jobset:
+                jobname = jobcfg.text
+                try:
+                    jobtyp = JobType[jobcfg.tag]
+                except KeyError:
+                    self._log.error("Invalid jobtype in jobset %s for %s: %s",
+                                    name, jobname, jobcfg.tag)
+                    continue
+                found = False
+                for job in self._jobs[jobtyp]:
+                    if job.name == jobname:
+                        self._log.debug("Added job %s.%s to jobset %s",
+                                        job.type.name, job.name, name)
+                        jobs.append(job)
+                        found = True
+                        break
+                if not found:
+                    self._log.error("Undefined job in jobset %s: %s.%s",
+                                    name, jobtyp.name, jobname)
+            self._log.debug("Loaded jobset %s with %d jobs", name, len(jobs))
+            self._jobsets[name] = jobs
+
+        for typ in JobType:
+            typejobs = self._jobs[typ]
+            for jobset in cfg.findall(typ.name):
+                name = jobset.attrib["name"]
+                jobs = []
+                self._log.debug("Loading jobset %s.%s", typ.name, name)
+                for jobcfg in jobset:
+                    jobname = jobcfg.text
+                    found = False
+                    for job in typejobs:
+                        if job.name == jobname:
+                            self._log.debug("Added job %s.%s to jobset %s",
+                                            job.type.name, job.name, name)
+                            jobs.append(job)
+                            found = True
+                            break
+                    if not found:
+                        self._log.error("Undefined job in jobset %s: %s.%s",
+                                        name, typ.name, jobname)
+                self._jobsets[name] = jobs
+                self._log.debug("Loaded jobset %s.%s with %d jobs",
+                                typ.name, name, len(jobs))
 
     def load(self, file: str, really: bool):
         self._really = really
@@ -67,6 +136,7 @@ class Config:
         lockdir = root.find("locks")
         commands = root.find("commands")
         jobs = root.find("jobs")
+        jobsets = root.find("jobsets")
 
         zfs = "/usr/bin/zfs"
         sudo = "/usr/bin/sudo"
@@ -93,3 +163,6 @@ class Config:
             self._log.critical("No jobs defined.")
             exit(0)
         self._parse_jobs(jobs)
+
+        if jobsets is not None:
+            self._parse_jobsets(jobsets)

@@ -24,6 +24,11 @@
             <!-- <recursive /> -->
         </snapshot>
 
+        <snapshot name="root">
+            <target pool="data" dataset="root" />
+            <enabled />
+        </snapshot>
+
         <clean name="users">
             <target pool="data" dataset="users" />
             <enabled />
@@ -62,4 +67,22 @@
             <incremental />
         </copy>
     </jobs>
+
+    <jobsets>
+        <jobset name="snapandclean">
+            <snapshot>users</snapshot>
+            <clean>users</clean>
+        </jobset>
+
+        <jobset name="scc">
+            <snapshot>users</snapshot>
+            <clean>users</clean>
+            <copy>users</copy>
+        </jobset>
+
+        <snapshot name="snapall">
+            <job>users</job>
+            <job>root</job>
+        </snapshot>
+    </jobsets>
 </zfsbackup>

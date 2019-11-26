@@ -27,6 +27,7 @@ class ZfsBackupCli:
             "snapshot": "Take a snapshot of a target.",
             "clean": "Cleanup snapshots of a target.",
             "copy": "Copy specified target to it's destination.",
+            "jobset": "Run specified jobset(s)",
         }
 
         for actionname, description in action_list.items():
@@ -67,6 +68,11 @@ class ZfsBackupCli:
     def copy(self):
         for job in self._cfg.list_jobs(JobType.copy, self._args.jobs):
             job.run()
+
+    def jobset(self):
+        now = datetime.now().utcnow()
+        for job in self._cfg.list_jobsets(self._args.jobs):
+            job.run(now=now)
 
     def run(self):
         getattr(self, self._args.action)()
