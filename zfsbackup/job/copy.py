@@ -101,13 +101,19 @@ class Copy(JobBase):
                            + " for incremental copy",
                            self.destination.joined, dsnap)
 
-        self.zfs.copy(source=self.source.joined, snapshot=ssnap,
-                      target=self.destination.joined,
-                      incremental=dsnap,
-                      replicate=self.replicate,
-                      rollback=self.destination.rollback,
-                      overwrites=self.destination.overwrite_properties,
-                      ignores=self.destination.ignore_properties)
+        with self._acquire_lock(self.source):
+            dlock = None
+            if self.source.pool != self.destination.pool:
+                dlock = self._acquire_lock(self.destination)
+                dlock.acquire()
+            self.zfs.copy(source=self.source.joined, snapshot=ssnap,
+                          target=self.destination.joined,
+                          incremental=dsnap, replicate=self.replicate,
+                          rollback=self.destination.rollback,
+                          overwrites=self.destination.overwrite_properties,
+                          ignores=self.destination.ignore_properties)
+            if dlock:
+                dlock.release()
 
         if self.really:
             with self.cache as cache:

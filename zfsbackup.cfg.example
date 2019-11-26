@@ -1,5 +1,6 @@
 <zfsbackup>
     <cache>zfsbackup.sqlite</cache>
+    <locks>locks</locks>
 
     <commands>
         <zfs>/usr/bin/zfs</zfs>

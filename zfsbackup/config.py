@@ -16,6 +16,7 @@ class Config:
         # self._zpool = "/usr/bin/zpool"
         self._really = False
         self._cache = "/var/cache/zfsbackup/zfsbackup.sqlite"
+        self._lockdir = "/var/lock/zfsbackup"
         self._jobs: Dict[JobType, List[JobBase]] = {}
         self._log = logging.getLogger("Config")
 
@@ -27,6 +28,9 @@ class Config:
 
     @property
     def cache(self): return Cache(self._cache)
+
+    @property
+    def lockdir(self): return self._lockdir
 
     def list_jobs(self, typ: JobType, names: List[str]) -> List[JobBase]:
         list_all = "all" in names
@@ -60,6 +64,7 @@ class Config:
         root = cfg.getroot()
 
         cache = root.find("cache")
+        lockdir = root.find("locks")
         commands = root.find("commands")
         jobs = root.find("jobs")
 
@@ -68,6 +73,9 @@ class Config:
 
         if cache is not None:
             self._cache = cache.text
+
+        if lockdir is not None:
+            self._lockdir = lockdir.text
 
         if commands is not None:
             for cmd in commands:

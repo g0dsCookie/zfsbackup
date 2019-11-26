@@ -2,9 +2,14 @@ import abc
 import datetime
 from enum import Enum
 import logging
+import os.path
+from typing import Dict, Union
+
+import filelock
 
 from zfsbackup.cache import Cache
 from zfsbackup.runner.zfs import ZFS
+from zfsbackup.models.dataset import Dataset
 
 
 class JobType(Enum):
@@ -18,7 +23,7 @@ class JobBase(metaclass=abc.ABCMeta):
         self._name = name
         self._type = typ
         self._enabled = enabled
-        self._exists = {}
+        self._exists: Dict[str, bool] = {}
         self._globalCfg = globalCfg
         self._log = logging.getLogger("%s.%s" % (typ.name.capitalize(), name))
 
@@ -63,6 +68,17 @@ class JobBase(metaclass=abc.ABCMeta):
         if not exists:
             self.log.error(msg, dataset)
         return exists
+
+    def _acquire_lock(self, pool: Union[str, Dataset],
+                      timeout=-1) -> filelock.FileLock:
+        if isinstance(pool, Dataset) or issubclass(pool.__class__, Dataset):
+            pool = pool.pool
+        if "/" in pool:
+            pool = pool.split("/")[0]
+
+        lockdir = self._globalCfg.lockdir
+        return filelock.FileLock(os.path.join(lockdir, "%s.lock" % pool),
+                                 timeout=timeout)
 
     @abc.abstractmethod
     def run(self):
