@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Union
 import xml.etree.ElementTree as ET
 
 from zfsbackup.cache import Cache
@@ -15,7 +15,7 @@ class Config:
         self._cache = "/var/cache/zfsbackup/zfsbackup.sqlite"
         self._lockdir = "/var/lock/zfsbackup"
         self._jobs: Dict[JobType, List[JobBase]] = {}
-        self._jobsets: Dict[str, List[JobBase]] = {}
+        self._jobsets: Dict[str, List[Union[JobBase, List[str]]]] = {}
         self._log = logging.getLogger("Config")
 
     @property
@@ -30,35 +30,61 @@ class Config:
     @property
     def lockdir(self): return self._lockdir
 
-    def list_jobs(self, typ: JobType, names: List[str]) -> List[JobBase]:
-        if "all" in names:
+    def list_jobs(self, typ: JobType, names: List[str],
+                  no_all=False) -> List[JobBase]:
+        if not no_all and "all" in names:
             return self._jobs[typ]
+
+        # first we list all jobset within names
         for name, jobset in self._jobsets.items():
             if name in names:
                 names.remove(name)
                 for job in jobset:
+                    if isinstance(job, str):
+                        # list another jobset within this jobset
+                        yield from self.list_jobsets([job], no_all=True,
+                                                     typ=typ)
+                        continue
                     if job.type == typ:
                         yield job
+
+        # then list all single jobs
         for job in self._jobs[typ]:
             if job.name in names:
                 names.remove(job.name)
                 yield job
+
         if names:
             self._log.warn("Unmatched job(set)s for %s: %s",
                            typ.name, ", ".join(names))
 
-    def list_jobsets(self, names: List[str]) -> List[JobBase]:
-        if "all" in names:
+    def list_jobsets(self, names: List[str],
+                     no_all=False, typ: JobType = None) -> List[JobBase]:
+        if not no_all and "all" in names:
             for name, jobset in self._jobsets.items():
                 for job in jobset:
                     yield job
             return
+
         for name, jobset in self._jobsets.items():
             if name not in names:
                 continue
             names.remove(name)
             for job in jobset:
+                if isinstance(job, str):
+                    # list another jobset within this jobset
+                    yield from self.list_jobsets([job], no_all=True)
+                    continue
+
+                if typ is not None:
+                    # list only jobs matching typ
+                    # (used exclusivly by list_jobs)
+                    if job.type == typ:
+                        yield job
+                    continue
+
                 yield job
+
         if names:
             self._log.warn("Unmatched jobsets: %s", ", ".join(names))
 
@@ -84,12 +110,20 @@ class Config:
             jobs = []
             for jobcfg in jobset:
                 jobname = jobcfg.text
+
+                if jobcfg.tag == "jobset":
+                    self._log.debug("Added jobset %s to jobset %s",
+                                    jobname, name)
+                    jobs.append(jobname)
+                    continue
+
                 try:
                     jobtyp = JobType[jobcfg.tag]
                 except KeyError:
                     self._log.error("Invalid jobtype in jobset %s for %s: %s",
                                     name, jobname, jobcfg.tag)
                     continue
+
                 found = False
                 for job in self._jobs[jobtyp]:
                     if job.name == jobname:

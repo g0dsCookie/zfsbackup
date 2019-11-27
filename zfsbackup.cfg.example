@@ -75,10 +75,14 @@
         </jobset>
 
         <jobset name="scc">
-            <snapshot>users</snapshot>
-            <clean>users</clean>
+            <jobset>snapall</jobset>
             <copy>users</copy>
+            <jobset>cleanall</jobset>
         </jobset>
+
+        <clean name="cleanall">
+            <job>users</job>
+        </clean>
 
         <snapshot name="snapall">
             <job>users</job>
