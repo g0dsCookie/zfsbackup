@@ -1,11 +1,12 @@
 import datetime
+from typing import List
 import xml.etree.ElementTree as ET
 
 import dateutil.relativedelta as RD
 import filelock
 
 from zfsbackup.helpers import missing_option
-from zfsbackup.job.base import JobBase, JobType
+from zfsbackup.job.base import JobBase, JobType, lock_dataset
 from zfsbackup.models.dataset import Dataset
 
 
@@ -43,10 +44,14 @@ class Clean(JobBase):
     @property
     def squash(self): return self._squash
 
-    def _list_snapshots(self, dataset: str, keep_until: datetime.datetime):
+    @lock_dataset("dataset", timeout=30)
+    def _clean(self, keep_until: datetime.datetime):
         prev = ""
+        dataset = self._dataset.joined
+        to_delete = []
         with self.cache as cache:
-            snapshots = self.zfs.datasets(dataset=dataset, snapshot=True,
+            snapshots = self.zfs.datasets(dataset=dataset,
+                                          snapshot=True,
                                           options=["name"], sort="name",
                                           sort_ascending=True)
 
@@ -66,7 +71,7 @@ class Clean(JobBase):
                 if time < keep_until:
                     self.log.info("%s@%s marked for deletion: Too old",
                                   dataset, name)
-                    yield name
+                    to_delete.append(name)
                     continue
 
                 if not self.squash:
@@ -79,8 +84,11 @@ class Clean(JobBase):
                     self.log.info("%s@%s marked for deletion: " +
                                   "Same as %s@%s",
                                   dataset, prev, dataset, name)
-                    yield prev
+                    to_delete.append(prev)
                 prev = name
+
+        for snapshot in to_delete:
+            self.zfs.destroy(self.dataset.joined, snapshot)
 
     def run(self, now: datetime.datetime, *args, **kwargs):
         if not self.enabled:
@@ -90,11 +98,4 @@ class Clean(JobBase):
         if not self._check_dataset(self.dataset.joined):
             return
 
-        try:
-            with self._acquire_lock(self.dataset, timeout=10):
-                dataset = self.dataset.joined
-                for snapshot in self._list_snapshots(dataset, now - self.keep):
-                    self.zfs.destroy(dataset, snapshot)
-        except filelock.Timeout:
-            self.log.error("Could not lock pool '%s' within 10 seconds",
-                           self.dataset.pool)
+        self._clean(now - self.keep)

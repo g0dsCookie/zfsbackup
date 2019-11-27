@@ -69,17 +69,61 @@ class JobBase(metaclass=abc.ABCMeta):
             self.log.error(msg, dataset)
         return exists
 
-    def _acquire_lock(self, pool: Union[str, Dataset],
-                      timeout=-1) -> filelock.FileLock:
-        if isinstance(pool, Dataset) or issubclass(pool.__class__, Dataset):
-            pool = pool.pool
-        if "/" in pool:
-            pool = pool.split("/")[0]
-
-        lockdir = self._globalCfg.lockdir
-        return filelock.FileLock(os.path.join(lockdir, "%s.lock" % pool),
-                                 timeout=timeout)
-
     @abc.abstractmethod
     def run(self, *args, **kwargs):
         raise NotImplementedError()
+
+
+class FileLockDemo:
+    def __init__(self, lock_file, timeout=-1):
+        self._lock_file = lock_file
+        self._timeout = timeout
+        self._log = logging.getLogger("FileLockDemo")
+
+    @property
+    def lock_file(self): return self._lock_file
+
+    @property
+    def timeout(self): return self._timeout
+
+    def __enter__(self):
+        self._log.info("Would lock file %s with timeout %d",
+                       self._lock_file, self.timeout)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._log.info("Would unlock file %s", self._lock_file)
+        return None
+
+
+def lock_dataset(target, timeout=-1):
+    def outer(function):
+        def inner(self, *args, **kwargs):
+            dataset = getattr(self, target)
+            if dataset is None:
+                self._log.error("Could not find variable self.%s", target)
+                return
+            if (not isinstance(dataset, Dataset)
+                    and not issubclass(dataset.__class__, Dataset)):
+                self._log.error("self.%s has invalid signature: %s",
+                                target, dataset.__class__)
+                return
+
+            lockdir = self._globalCfg.lockdir
+            filename = "%s.lock" % dataset.joined.replace("/", "_")
+
+            if not self.really:
+                lock = FileLockDemo(os.path.join(lockdir, filename),
+                                    timeout=timeout)
+            else:
+                lock = filelock.FileLock(os.path.join(lockdir, filename),
+                                         timeout=timeout)
+
+            try:
+                with lock:
+                    return function(self, *args, **kwargs)
+            except filelock.Timeout:
+                self._log.error("Could not lock dataset %s on file %s",
+                                dataset.joined, lock.lock_file)
+        return inner
+    return outer

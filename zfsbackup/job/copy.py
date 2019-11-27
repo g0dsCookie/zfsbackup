@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 
-from zfsbackup.job.base import JobBase, JobType
+from zfsbackup.job.base import JobBase, JobType, lock_dataset
 from zfsbackup.helpers import missing_option
 from zfsbackup.models.dataset import Dataset, DestinationDataset
 
@@ -46,6 +46,17 @@ class Copy(JobBase):
 
     @property
     def incremental(self): return self._incremental
+
+    @lock_dataset("source")
+    @lock_dataset("destination")
+    def _copy(self, source, destination):
+        return self.zfs.copy(source=self.source.joined, snapshot=source,
+                             target=self.destination.joined,
+                             incremental=destination,
+                             replicate=self.replicate,
+                             rollback=self.destination.rollback,
+                             overwrites=self.destination.overwrite_properties,
+                             ignores=self.destination.ignore_properties)
 
     def run(self, *args, **kwargs):
         self.log.info("Copying %s to %s",
@@ -101,22 +112,16 @@ class Copy(JobBase):
                            + " for incremental copy",
                            self.destination.joined, dsnap)
 
-        with self._acquire_lock(self.source):
-            dlock = None
-            if self.source.pool != self.destination.pool:
-                dlock = self._acquire_lock(self.destination)
-                dlock.acquire()
-            self.zfs.copy(source=self.source.joined, snapshot=ssnap,
-                          target=self.destination.joined,
-                          incremental=dsnap, replicate=self.replicate,
-                          rollback=self.destination.rollback,
-                          overwrites=self.destination.overwrite_properties,
-                          ignores=self.destination.ignore_properties)
-            if dlock:
-                dlock.release()
-
         if self.really:
+            # we mark our new source snapshot before copy
+            # to keep us running into trouble
             with self.cache as cache:
                 cache.snapshot_keep_increase(self.source.joined, ssnap)
+
+        self._copy(ssnap, dsnap)
+
+        if self.really:
+            # now demark old snapshot
+            with self.cache as cache:
                 if dsnap:
                     cache.snapshot_keep_decrease(self.source.joined, dsnap)
