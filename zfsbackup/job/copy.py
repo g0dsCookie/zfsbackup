@@ -117,11 +117,27 @@ class Copy(JobBase):
             # to keep us running into trouble
             with self.cache as cache:
                 cache.snapshot_keep_increase(self.source.joined, ssnap)
+                cache.snapshot_keep_increase(self.destination.joined, ssnap)
 
-        self._copy(ssnap, dsnap)
+        try:
+            self._copy(ssnap, dsnap)
+        except Exception as e:
+            # log exception so user knows what's going on
+            self._log.error("Catched exception on copy, decreasing counters..")
+            self._log.exception(e)
 
-        if self.really:
+            if self.really:
+                # decrease snapshot counter again on failure
+                with self.cache as cache:
+                    cache.snapshot_keep_decrease(self.source.joined, ssnap)
+                    cache.snapshot_keep_decrease(self.destination.joined,
+                                                 ssnap)
+
+            # re-raise exception
+            raise
+
+        if dsnap and self.really:
             # now demark old snapshot
             with self.cache as cache:
-                if dsnap:
-                    cache.snapshot_keep_decrease(self.source.joined, dsnap)
+                cache.snapshot_keep_decrease(self.source.joined, dsnap)
+                cache.snapshot_keep_decrease(self.destination.joined, dsnap)
