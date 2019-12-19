@@ -18,7 +18,7 @@ class Copy(JobBase):
             self.log.critical(missing_option, "source")
             exit(1)
         try:
-            self._source = Dataset(source)
+            self._source = Dataset(cfg=source)
         except KeyError as e:
             self.log.critical(str(e))
             exit(1)

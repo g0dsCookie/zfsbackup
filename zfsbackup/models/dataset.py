@@ -5,7 +5,19 @@ from zfsbackup.runner.zfs import ZFS
 
 
 class Dataset:
-    def __init__(self, cfg: ET.Element):
+    def __init__(self, dataset: str = None, cfg: ET.Element = None):
+        if cfg is not None:
+            self._parse_cfg(cfg)
+            return
+
+        if not dataset:
+            raise ValueError("Neither dataset nor cfg is set to a value")
+
+        splitted = dataset.split("/", 1)
+        self._pool = splitted[0]
+        self._dataset = splitted[1]
+
+    def _parse_cfg(self, cfg: ET.Element):
         self._pool = cfg.attrib.get("pool")
         self._dataset = cfg.attrib.get("dataset")
 
@@ -26,7 +38,7 @@ class Dataset:
 
 class DestinationDataset(Dataset):
     def __init__(self, cfg: ET.Element):
-        super().__init__(cfg)
+        super().__init__(cfg=cfg)
 
         rollback = cfg.find("rollback")
         properties = cfg.find("properties")

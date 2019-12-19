@@ -96,18 +96,23 @@ class FileLockDemo:
         return None
 
 
-def lock_dataset(target, timeout=-1):
+def lock_dataset(target=None, timeout=-1):
     def outer(function):
         def inner(self, *args, **kwargs):
-            dataset = getattr(self, target)
-            if dataset is None:
-                self._log.error("Could not find variable self.%s", target)
-                return
+            if target is None:
+                dataset = kwargs.get("target")
+                if dataset is None:
+                    raise ValueError("no target dataset specified to lock")
+                if "timeout" in kwargs:
+                    timeout = int(kwargs["timeout"])
+            else:
+                dataset = getattr(self, target)
+                if dataset is None:
+                    raise ValueError("could not find seld.%s" % target)
             if (not isinstance(dataset, Dataset)
                     and not issubclass(dataset.__class__, Dataset)):
-                self._log.error("self.%s has invalid signature: %s",
-                                target, dataset.__class__)
-                return
+                raise ValueError("self.%s has invalid signature: %s" % (
+                    target, dataset.__class__))
 
             lockdir = self._globalCfg.lockdir
             filename = "%s.lock" % dataset.joined.replace("/", "_")

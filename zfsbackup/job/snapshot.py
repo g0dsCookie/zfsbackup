@@ -16,7 +16,7 @@ class Snapshot(JobBase):
         if target is None:
             self.log.critical(missing_option, "target")
             exit(1)
-        self._dataset = Dataset(target)
+        self._dataset = Dataset(cfg=target)
 
         self._recursive = recursive is not None
 

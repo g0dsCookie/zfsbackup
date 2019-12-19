@@ -17,11 +17,12 @@ class Clean(JobBase):
         target = cfg.find("target")
         keep = cfg.find("keep")
         squash = cfg.find("squash")
+        recurse = cfg.find("recurse")
 
         if target is None:
             self.log.critical(missing_option, "target")
             exit(1)
-        self._dataset = Dataset(target)
+        self._dataset = Dataset(cfg=target)
 
         if keep is None:
             self.log.warn("<keep> is not defined. Disabling this clean job.")
@@ -34,6 +35,7 @@ class Clean(JobBase):
                                           minutes=int(attr.get("minutes", 0)))
 
         self._squash = squash is not None
+        self._recurse = recurse is not None
 
     @property
     def dataset(self): return self._dataset
@@ -44,10 +46,13 @@ class Clean(JobBase):
     @property
     def squash(self): return self._squash
 
-    @lock_dataset("dataset", timeout=30)
-    def _clean(self, keep_until: datetime.datetime):
+    @property
+    def recurse(self): return self._recurse
+
+    @lock_dataset(timeout=30)
+    def _clean(self, target: Dataset, keep_until: datetime.datetime):
         prev = ""
-        dataset = self._dataset.joined
+        dataset = target.joined
         to_delete = []
         with self.cache as cache:
             snapshots = self.zfs.datasets(dataset=dataset,
@@ -98,4 +103,12 @@ class Clean(JobBase):
         if not self._check_dataset(self.dataset.joined):
             return
 
-        self._clean(now - self.keep)
+        if self.recurse:
+            for dataset in self.zfs.datasets(dataset=self.dataset.joined,
+                                             recurse=True, options=["name"],
+                                             sort="name"):
+                self._clean(dataset=Dataset(dataset=dataset["name"],
+                                            keep_until=now - self.keep))
+        else:
+            self._clean(dataset=self.dataset,
+                        keep_until=now - self.keep)

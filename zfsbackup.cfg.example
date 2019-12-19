@@ -24,6 +24,12 @@
             <!-- <recursive /> -->
         </snapshot>
 
+        <snapshot name="recurse">
+            <target pool="data" dataset="recurse" />
+            <enabled />
+            <recursive />
+        </snapshot>
+
         <snapshot name="root">
             <target pool="data" dataset="root" />
             <enabled />
@@ -31,6 +37,14 @@
 
         <clean name="users">
             <target pool="data" dataset="users" />
+            <enabled />
+            <keep months="1" />
+            <squash />
+        </clean>
+
+        <clean name="recurse">
+            <target pool="data" dataset="recurse" />
+            <recurse />
             <enabled />
             <keep months="1" />
             <squash />
