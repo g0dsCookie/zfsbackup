@@ -28,6 +28,9 @@ class Config:
     def cache(self): return Cache(self._cache)
 
     @property
+    def cache_path(self): return self._cache
+
+    @property
     def lockdir(self): return self._lockdir
 
     def list_jobs(self, typ: JobType, names: List[str],

@@ -3,6 +3,48 @@ import sqlite3
 
 
 class Cache:
+    MIGRATIONS = [
+        # db version 1
+        """
+        BEGIN TRANSACTION;
+        CREATE TABLE keep_snapshots (
+            dataset TEXT,
+            snapshot TEXT,
+            count INT,
+            UNIQUE(dataset, snapshot)
+        );
+        CREATE TABLE db_version (
+            version INT
+        );
+        INSERT INTO db_version VALUES (1);
+        COMMIT;
+        """,
+        # db version 2
+        """
+        BEGIN TRANSACTION;
+        ALTER TABLE keep_snapshots RENAME to keep_snapshots_old;
+        CREATE TABLE keep_snapshots (
+            dataset TEXT NOT NULL,
+            snapshot TEXT NOT NULL,
+            count INT NOT NULL,
+            UNIQUE(dataset, snapshot)
+        );
+        INSERT INTO keep_snapshots (dataset, snapshot, count)
+            SELECT
+                IFNULL(dataset, '') AS dataset,
+                IFNULL(snapshot, '') AS snapshot,
+                IFNULL(count, 0) AS count
+            FROM
+                keep_snapshots_old
+            WHERE
+                dataset IS NOT NULL
+                OR snapshot IS NOT NULL;
+        DROP TABLE keep_snapshots_old;
+        UPDATE db_version SET version=2;
+        COMMIT;
+        """,
+    ]
+
     def __init__(self, file: str, autocommit=True):
         self._file = file
         self._db: sqlite3.Connection = None
@@ -41,39 +83,15 @@ class Cache:
         except sqlite3.OperationalError:
             return -1
 
-    @db_version.setter
-    def db_version(self, version: int):
-        cur = self._db.cursor()
-        cur.execute("UPDATE db_version SET version=?", [version])
-        cur.fetchall()
-
     def commit(self):
         self._db.commit()
 
-    def create_tables(self):
-        cur = self._db.cursor()
-        cur.execute(
-            """
-            CREATE TABLE keep_snapshots (
-                dataset TEXT,
-                snapshot TEXT,
-                count INT,
-                UNIQUE(dataset, snapshot)
-            )
-            """
-        )
-        cur.execute(
-            """
-            CREATE TABLE db_version (
-                version INT
-            )
-            """
-        )
-        cur.execute(
-            """
-            INSERT INTO db_version VALUES (1)
-            """
-        )
+    def update_tables(self):
+        version = self.db_version
+        if version < 0:
+            version = 0
+        for migration in self.MIGRATIONS[version:]:
+            self._db.executescript(migration)
 
     def snapshot_keep(self, dataset: str, snapshot: str) -> int:
         cur = self._db.cursor()
