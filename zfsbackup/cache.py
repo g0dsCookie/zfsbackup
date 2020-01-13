@@ -83,6 +83,10 @@ class Cache:
         except sqlite3.OperationalError:
             return -1
 
+    @property
+    def is_current(self) -> bool:
+        return self.db_version == len(self.MIGRATIONS)
+
     def commit(self):
         self._db.commit()
 
