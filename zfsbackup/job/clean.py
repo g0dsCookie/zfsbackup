@@ -65,6 +65,12 @@ class Clean(JobBase):
                 name = snapshot["name"].split("@")[1]
                 time = self._parse_time(name)
 
+                if prev and not self.zfs.diff_snapshots(dataset, prev, name):
+                    self.log.info("%s@%s marked for deletion: " +
+                                  "Same as %s@%s",
+                                  dataset, prev, dataset, name)
+                    to_delete.append(prev)
+
                 snapshot_copy_count = cache.snapshot_keep(dataset, name)
                 self.log.debug("%s@%s has a total copy count of %d",
                                dataset, name, snapshot_copy_count)
@@ -82,15 +88,6 @@ class Clean(JobBase):
 
                 if not self.squash:
                     continue
-                if not prev:
-                    prev = name
-                    continue
-
-                if not self.zfs.diff_snapshots(dataset, prev, name):
-                    self.log.info("%s@%s marked for deletion: " +
-                                  "Same as %s@%s",
-                                  dataset, prev, dataset, name)
-                    to_delete.append(prev)
                 prev = name
 
         for snapshot in to_delete:
