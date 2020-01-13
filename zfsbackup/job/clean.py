@@ -49,10 +49,11 @@ class Clean(JobBase):
     @property
     def recurse(self): return self._recurse
 
-    @lock_dataset(timeout=30)
-    def _clean(self, target: Dataset, keep_until: datetime.datetime):
+    @lock_dataset(target="dataset", timeout=30)
+    def _clean(self, dataset: Dataset,
+               keep_until: datetime.datetime):
         prev = ""
-        dataset = target.joined
+        dataset = dataset.joined
         to_delete = []
         with self.cache as cache:
             snapshots = self.zfs.datasets(dataset=dataset,
@@ -93,7 +94,7 @@ class Clean(JobBase):
                 prev = name
 
         for snapshot in to_delete:
-            self.zfs.destroy(self.dataset.joined, snapshot)
+            self.zfs.destroy(dataset, snapshot)
 
     def run(self, now: datetime.datetime, *args, **kwargs):
         if not self.enabled:
@@ -107,8 +108,8 @@ class Clean(JobBase):
             for dataset in self.zfs.datasets(dataset=self.dataset.joined,
                                              recurse=True, options=["name"],
                                              sort="name"):
-                self._clean(dataset=Dataset(dataset=dataset["name"],
-                                            keep_until=now - self.keep))
+                self._clean(dataset=Dataset(dataset=dataset["name"]),
+                            keep_until=now - self.keep)
         else:
             self._clean(dataset=self.dataset,
                         keep_until=now - self.keep)
