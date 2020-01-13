@@ -49,14 +49,14 @@ class Copy(JobBase):
 
     @lock_dataset("source")
     @lock_dataset("destination")
-    def _copy(self, source, destination):
-        return self.zfs.copy(source=self.source.joined, snapshot=source,
-                             target=self.destination.joined,
-                             incremental=destination,
+    def _copy(self, source, source_snap, destination, dest_snap):
+        return self.zfs.copy(source=source.joined, snapshot=source_snap,
+                             target=destination.joined,
+                             incremental=dest_snap,
                              replicate=self.replicate,
-                             rollback=self.destination.rollback,
-                             overwrites=self.destination.overwrite_properties,
-                             ignores=self.destination.ignore_properties)
+                             rollback=destination.rollback,
+                             overwrites=destination.overwrite_properties,
+                             ignores=destination.ignore_properties)
 
     def run(self, *args, **kwargs):
         self.log.info("Copying %s to %s",
@@ -120,7 +120,8 @@ class Copy(JobBase):
                 cache.snapshot_keep_increase(self.destination.joined, ssnap)
 
         try:
-            self._copy(ssnap, dsnap)
+            self._copy(source=self.source, source_snap=ssnap,
+                       destination=self.destination, dest_snap=dsnap)
         except Exception as e:
             # log exception so user knows what's going on
             self._log.error("Catched exception on copy, decreasing counters..")
