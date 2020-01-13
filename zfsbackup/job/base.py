@@ -100,16 +100,12 @@ def lock_dataset(target=None, timeout=-1):
     def outer(function):
         def inner(self, *args, **kwargs):
             nonlocal timeout
-            if target is None:
-                dataset = kwargs.get("target")
-                if dataset is None:
-                    raise ValueError("no target dataset specified to lock")
-                if "timeout" in kwargs:
-                    timeout = int(kwargs["timeout"])
-            else:
-                dataset = getattr(self, target)
-                if dataset is None:
-                    raise ValueError("could not find seld.%s" % target)
+            dataset = kwargs.get(target if target else "target")
+            if dataset is None:
+                raise ValueError("could not find dataset to lock")
+            if "lock_timeout" in kwargs:
+                timeout = int(kwargs["lock_timeout"])
+
             if (not isinstance(dataset, Dataset)
                     and not issubclass(dataset.__class__, Dataset)):
                 raise ValueError("self.%s has invalid signature: %s" % (
