@@ -99,6 +99,7 @@ class FileLockDemo:
 def lock_dataset(target=None, timeout=-1):
     def outer(function):
         def inner(self, *args, **kwargs):
+            nonlocal timeout
             if target is None:
                 dataset = kwargs.get("target")
                 if dataset is None:
