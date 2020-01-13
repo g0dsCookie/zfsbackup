@@ -57,11 +57,12 @@ class ZfsBackupCli:
         self._cfg = Config()
         self._cfg.load(self._args.config, self._args.really)
 
-        with self._cfg.cache as cache:
-            if not cache.is_current:
-                self._log.critical("Cache update is needed!")
-                self._log.critical("Use 'zfsbackup updatedb' to update cache")
-                exit(1)
+        if not self._args.action == "updatedb":
+            with self._cfg.cache as cache:
+                if not cache.is_current:
+                    self._log.critical("Cache update is needed!")
+                    self._log.critical("Use 'zfsbackup updatedb' to update cache")
+                    exit(1)
 
     def snapshot(self):
         now = datetime.now().utcnow()
