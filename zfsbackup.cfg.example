@@ -42,6 +42,13 @@
             <squash />
         </clean>
 
+        <clean name="users_bak">
+            <target pool="data" dataset="backup/users" />
+            <enabled />
+            <keep months="1" />
+            <squash />
+        </clean>
+
         <clean name="recurse">
             <target pool="data" dataset="recurse" />
             <recurse />
