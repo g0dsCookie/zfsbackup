@@ -1,9 +1,7 @@
 import datetime
-from typing import List
 import xml.etree.ElementTree as ET
 
 import dateutil.relativedelta as RD
-import filelock
 
 from zfsbackup.helpers import missing_option
 from zfsbackup.job.base import JobBase, JobType, lock_dataset

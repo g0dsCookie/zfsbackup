@@ -3,7 +3,7 @@ import datetime
 from enum import Enum
 import logging
 import os.path
-from typing import Dict, Union
+from typing import Dict
 
 import filelock
 
