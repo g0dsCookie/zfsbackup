@@ -11,8 +11,9 @@ from zfsbackup.models.dataset import Dataset
 
 
 class Clean(JobBase):
-    def __init__(self, name: str, enabled: bool, globalCfg, cfg: ET.Element):
-        super().__init__(name, JobType.clean, enabled, globalCfg)
+    def __init__(self, name: str, file: str,
+                 enabled: bool, globalCfg, cfg: ET.Element):
+        super().__init__(name, file, JobType.clean, enabled, globalCfg)
 
         target = cfg.find("target")
         keep = cfg.find("keep")

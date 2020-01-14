@@ -6,8 +6,9 @@ from zfsbackup.models.dataset import Dataset, DestinationDataset
 
 
 class Copy(JobBase):
-    def __init__(self, name: str, enabled: bool, globalCfg, cfg: ET.Element):
-        super().__init__(name, JobType.copy, enabled, globalCfg)
+    def __init__(self, name: str, file: str,
+                 enabled: bool, globalCfg, cfg: ET.Element):
+        super().__init__(name, file, JobType.copy, enabled, globalCfg)
 
         source = cfg.find("source")
         destination = cfg.find("destination")

@@ -1,5 +1,7 @@
+import glob
 import logging
-from typing import List, Dict, Union
+import os
+from typing import List, Dict, Union, Tuple
 import xml.etree.ElementTree as ET
 
 from zfsbackup.cache import Cache
@@ -15,7 +17,7 @@ class Config:
         self._cache = "/var/cache/zfsbackup/zfsbackup.sqlite"
         self._lockdir = "/var/lock/zfsbackup"
         self._jobs: Dict[JobType, List[JobBase]] = {}
-        self._jobsets: Dict[str, List[Union[JobBase, List[str]]]] = {}
+        self._jobsets: Dict[str, List[Union[JobBase, str]]] = {}
         self._log = logging.getLogger("Config")
 
     @property
@@ -35,21 +37,28 @@ class Config:
 
     def list_jobs(self, typ: JobType, names: List[str],
                   no_all=False) -> List[JobBase]:
-        if not no_all and "all" in names:
-            return self._jobs[typ]
+        if not no_all:
+            ret = False
+            if "all" in names:
+                yield from self._jobs[typ]
+                ret = True
+            if "all-js" in names or "all-jobsets" in names:
+                yield from self.list_jobsets(["all"], typ=typ)
+                ret = True
+            if ret:
+                return
 
-        # first we list all jobset within names
-        for name, jobset in self._jobsets.items():
-            if name in names:
-                names.remove(name)
-                for job in jobset:
+        i = 0
+        while i < len(names):
+            if names[i] in self._jobsets:
+                for job in self._jobsets[names[i]]:
                     if isinstance(job, str):
-                        # list another jobset within this jobset
-                        yield from self.list_jobsets([job], no_all=True,
-                                                     typ=typ)
-                        continue
-                    if job.type == typ:
+                        yield from self.list_jobsets([job], typ=typ)
+                    elif job.type == typ:
                         yield job
+                names.pop(i)
+                continue
+            i += 1
 
         # then list all single jobs
         for job in self._jobs[typ]:
@@ -66,6 +75,13 @@ class Config:
         if not no_all and "all" in names:
             for name, jobset in self._jobsets.items():
                 for job in jobset:
+                    if isinstance(job, str):
+                        yield from self.list_jobsets([job], no_all=True)
+                        continue
+                    if typ is not None:
+                        if job.type == typ:
+                            yield job
+                        continue
                     yield job
             return
 
@@ -90,21 +106,6 @@ class Config:
 
         if names:
             self._log.warn("Unmatched jobsets: %s", ", ".join(names))
-
-    def _parse_jobtype(self, cfg: List[ET.Element], ctor):
-        for v in cfg:
-            name = v.attrib["name"]
-            enabled = v.find("enabled")
-            yield ctor(name, enabled is not None, self, v)
-
-    def _parse_jobs(self, cfg: ET.Element):
-        for typ in JobType:
-            name = typ.name
-            self._log.debug("Loading '%s' jobs...", name)
-            configs = cfg.findall(name)
-            jobs = list(self._parse_jobtype(configs, get_constructor(typ)))
-            self._log.debug("Found %d jobs for %s", len(jobs), name)
-            self._jobs[typ] = jobs
 
     def _parse_jobsets(self, cfg: ET.Element):
         for jobset in cfg.findall("jobset"):
@@ -164,42 +165,188 @@ class Config:
                 self._log.debug("Loaded jobset %s.%s with %d jobs",
                                 typ.name, name, len(jobs))
 
+    def _load_include(self, cfg: ET.ElementTree) -> str:
+        include = cfg.find("include")
+        return include.text if include is not None else ""
+
+    def _load_cache(self, cfg: ET.ElementTree) -> str:
+        cache = cfg.find("cache")
+        return cache.text if cache is not None else ""
+
+    def _load_lockdir(self, cfg: ET.ElementTree) -> str:
+        lockdir = cfg.find("locks")
+        return lockdir.text if lockdir is not None else ""
+
+    def _load_commands(self, cfg: ET.ElementTree) -> List[Tuple[str, str]]:
+        commands = cfg.find("commands")
+        if commands is None:
+            return
+        for cmd in commands:
+            if cmd.tag == "zfs":
+                yield ("zfs", cmd.text)
+            elif cmd.tag == "sudo":
+                yield ("sudo", cmd.text)
+            else:
+                self._log.debug("Ignoring extra command '%s'",
+                                cmd.attrib["name"])
+
+    def _load_jobs(self, file: str, cfg: ET.ElementTree) -> List[JobBase]:
+        jobs = cfg.find("jobs")
+        if jobs is None:
+            return
+        for job in jobs:
+            name = job.attrib["name"]
+            enabled = job.find("enabled") is not None
+            try:
+                typ = JobType[job.tag]
+            except KeyError:
+                self._log.error("Unknown JobType for %s: %s",
+                                name, job.tag)
+                continue
+            ctor = get_constructor(typ)
+            yield ctor(name, file, enabled, self, job)
+
+    def _load_jobsets(self, cfg: ET.ElementTree) -> List[ET.Element]:
+        jobsets = cfg.find("jobsets")
+        if jobsets is None:
+            return
+        yield from jobsets
+
+    def _load_file(self, file: str):
+        root = ET.parse(file).getroot()
+        return (self._load_include(root),
+                self._load_cache(root),
+                self._load_lockdir(root),
+                self._load_commands(root),
+                self._load_jobs(file, root),
+                self._load_jobsets(root))
+
+    def _append_jobs(self, jobs: List[JobBase]):
+        for job in jobs:
+            if job.type not in self._jobs:
+                self._jobs[job.type] = []
+            lst = self._jobs[job.type]
+            i = 0
+            while i < len(lst):
+                if lst[i].name == job.name:
+                    self._log.warn("Job %s already defined in %s, " +
+                                   "overwriting from file %s",
+                                   job.name, lst[i].file, job.file)
+                    lst[i] = job
+                    break
+                i += 1
+            else:
+                self._log.debug("Adding new job %s from %s",
+                                job.name, job.file)
+                lst.append(job)
+
+    def _append_generic_jobset(self, file: str, jobset: ET.Element):
+        name = jobset.attrib["name"]
+
+        if name in self._jobsets:
+            self._log.warn("JobSet %s already defined in %s, " +
+                           "overwriting from file %s",
+                           name, self._jobset_files[name], file)
+
+        jobs = []
+        for jc in jobset:
+            jn = jc.text
+            if jc.tag == "jobset":
+                jobs.append(jn)
+                continue
+
+            try:
+                jt = JobType[jc.tag]
+            except KeyError:
+                self._log.error("Invalid JobType %s in JobSet %s for %s",
+                                jc.tag, name, jn)
+                exit(1)
+
+            for job in self._jobs[jt]:
+                if job.name == jn:
+                    jobs.append(job)
+                    break
+            else:
+                self._log.error("Undefined Job %s.%s in JobSet %s",
+                                jt.name, jn, name)
+                exit(1)
+
+        self._jobsets[name] = jobs
+        self._jobset_files[name] = file
+
+    def _append_specific_jobset(self, file: str,
+                                jobset: ET.Element):
+        name = jobset.attrib["name"]
+        try:
+            typ = JobType[jobset.tag]
+        except KeyError:
+            self._log.error("Invalid JobType %s for JobSet %s",
+                            jobset.tag, name)
+            exit(1)
+
+        if name in self._jobsets:
+            self._log.warn("JobSet %s already defined in %s, " +
+                           "overwriting from file %s",
+                           name, self._jobset_files[name], file)
+
+        jobs = []
+        for jc in jobset:
+            jn = jc.text
+            for job in self._jobs[typ]:
+                if job.name == jn:
+                    jobs.append(job)
+                    break
+            else:
+                self._log.error("Undefined Job %s.%s in JobSet %s",
+                                typ.name, jn, name)
+                exit(1)
+
+        self._jobsets[name] = jobs
+        self._jobset_files[name] = file
+
+    def _append_jobsets(self, file: str, jobsets: List[ET.Element]):
+        for jobset in jobsets:
+            if jobset.tag == "jobset":
+                self._append_generic_jobset(file, jobset)
+                continue
+            self._append_specific_jobset(file, jobset)
+
     def load(self, file: str, really: bool):
         self._really = really
-        cfg = ET.parse(file)
-        root = cfg.getroot()
 
-        cache = root.find("cache")
-        lockdir = root.find("locks")
-        commands = root.find("commands")
-        jobs = root.find("jobs")
-        jobsets = root.find("jobsets")
+        # we defer jobset parsing till we loaded all jobs
+        alljobsets = []
 
+        # defaults
         zfs = "/usr/bin/zfs"
         sudo = "/usr/bin/sudo"
 
-        if cache is not None:
-            self._cache = cache.text
-
-        if lockdir is not None:
-            self._lockdir = lockdir.text
-
-        if commands is not None:
-            for cmd in commands:
-                if cmd.tag == "zfs":
-                    zfs = cmd.text
-                elif cmd.tag == "sudo":
-                    sudo = cmd.text
-                else:
-                    self._log.debug("Ignoring extra command: %s",
-                                    cmd.attrib["name"])
+        files = [file]
+        i = 0
+        while i < len(files):
+            (inc, cache, lockdir, cmds, jobs, js) = self._load_file(files[i])
+            if inc:
+                files.extend([f for f in glob.iglob(inc, recursive=True)
+                              if os.path.isfile(f)])
+            if cache:
+                self._cache = cache
+            if lockdir:
+                self._lockdir = lockdir
+            if cmds:
+                for cmd in cmds:
+                    if cmd[0] == "zfs":
+                        zfs = cmd[1]
+                    elif cmd[0] == "sudo":
+                        sudo = cmd[1]
+            if jobs:
+                self._append_jobs(jobs)
+            if js:
+                alljobsets.append((files[i], js))
+            i += 1
 
         self._zfs = ZFS(zfs=zfs, sudo=sudo, really=really)
 
-        if jobs is None:
-            self._log.critical("No jobs defined.")
-            exit(0)
-        self._parse_jobs(jobs)
-
-        if jobsets is not None:
-            self._parse_jobsets(jobsets)
+        self._jobset_files: Dict[str, str] = {}
+        for (file, jobsets) in alljobsets:
+            self._append_jobsets(file, jobsets)
+        del self._jobset_files

@@ -19,8 +19,10 @@ class JobType(Enum):
 
 
 class JobBase(metaclass=abc.ABCMeta):
-    def __init__(self, name: str, typ: JobType, enabled: bool, globalCfg):
+    def __init__(self, name: str, file: str, typ: JobType,
+                 enabled: bool, globalCfg):
         self._name = name
+        self._file = file
         self._type = typ
         self._enabled = enabled
         self._exists: Dict[str, bool] = {}
@@ -29,6 +31,9 @@ class JobBase(metaclass=abc.ABCMeta):
 
     @property
     def name(self): return self._name
+
+    @property
+    def file(self): return self._file
 
     @property
     def type(self): return self._type

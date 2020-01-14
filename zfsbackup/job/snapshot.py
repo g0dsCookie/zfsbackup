@@ -7,8 +7,9 @@ from zfsbackup.models.dataset import Dataset
 
 
 class Snapshot(JobBase):
-    def __init__(self, name: str, enabled: bool, globalCfg, cfg: ET.Element):
-        super().__init__(name, JobType.snapshot, enabled, globalCfg)
+    def __init__(self, name: str, file: str,
+                 enabled: bool, globalCfg, cfg: ET.Element):
+        super().__init__(name, file, JobType.snapshot, enabled, globalCfg)
 
         target = cfg.find("target")
         recursive = cfg.find("recursive")
