@@ -33,6 +33,8 @@ class ZfsBackupCli:
 
         for actionname, description in action_list.items():
             action = actions.add_parser(actionname, description=description)
+            action.add_argument("-l", "--list", action="store_true",
+                                help="Only list jobs that would be executed")
             action.add_argument("jobs", metavar="JOB", type=str, nargs="+",
                                 help="Target(s) to run action on")
 
@@ -61,26 +63,30 @@ class ZfsBackupCli:
             with self._cfg.cache as cache:
                 if not cache.is_current:
                     self._log.critical("Cache update is needed!")
-                    self._log.critical("Use 'zfsbackup updatedb' to update cache")
+                    self._log.critical("Use 'zfsbackup updatedb'" +
+                                       " to update cache")
                     exit(1)
 
-    def snapshot(self):
+    def run_job(self, typ: JobType):
         now = datetime.now().utcnow()
-        for job in self._cfg.list_jobs(JobType.snapshot, self._args.jobs):
-            job.run(now)
+        for job in self._cfg.list_jobs(typ, self._args.jobs):
+            if self._args.list:
+                self._log.info("Would run %s.%s", job.type.name, job.name)
+                continue
+            job.run(now=now)
 
-    def clean(self):
-        now = datetime.now().utcnow()
-        for job in self._cfg.list_jobs(JobType.clean, self._args.jobs):
-            job.run(now)
+    def snapshot(self): self.run_job(JobType.snapshot)
 
-    def copy(self):
-        for job in self._cfg.list_jobs(JobType.copy, self._args.jobs):
-            job.run()
+    def clean(self): self.run_job(JobType.clean)
+
+    def copy(self): self.run_job(JobType.copy)
 
     def jobset(self):
         now = datetime.now().utcnow()
         for job in self._cfg.list_jobsets(self._args.jobs):
+            if self._args.list:
+                self._log.info("Would run %s.%s", job.type.name, job.name)
+                continue
             job.run(now=now)
 
     def updatedb(self):
