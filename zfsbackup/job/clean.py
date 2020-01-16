@@ -108,7 +108,7 @@ class Clean(JobBase):
                                              sort="name"):
                 self._clean(dataset=Dataset(dataset=dataset["name"]),
                             keep_until=now - self.keep,
-                            parent=self.dataset.joined)
+                            parent=self.dataset)
         else:
             self._clean(dataset=self.dataset,
                         keep_until=now - self.keep)
