@@ -58,7 +58,6 @@ class ZfsBackupCli:
 
         self._cfg = Config()
         self._cfg.load(self._args.config, self._args.really)
-        print(self._cfg.get_command("test"))
 
         if not self._args.action == "updatedb":
             with self._cfg.cache as cache:
