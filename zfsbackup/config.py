@@ -25,6 +25,18 @@ class Config:
         self._log = logging.getLogger("Config")
 
     @property
+    def jobs(self) -> List[JobBase]:
+        for _, jobs in self._jobs.items():
+            yield from jobs
+
+    @property
+    def jobsets(self) -> List[Tuple[str, str]]:
+        for name, jobset in self._jobsets.items():
+            yield (name, [("%s.%s" % (j.type.name, j.name)
+                           if isinstance(j, JobBase) else "jobset.%s" % j)
+                          for j in jobset])
+
+    @property
     def zfs(self): return ZFS(zfs=self._zfs, sudo=self._sudo,
                               really=self._really)
 

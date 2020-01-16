@@ -44,6 +44,11 @@ class ZfsBackupCli:
         action.add_argument("--no-backup", action="store_true",
                             help="Do not backup old sqlite before migration.")
 
+        action = actions.add_parser("list",
+                                    description="List all defined jobs(ets).")
+        action.add_argument("type", metavar="TYPE", type=str,
+                            help="Type to list (jobs|jobsets)")
+
         self._args = parser.parse_args()
         if not self._args.action:
             print("No action given.", file=sys.stderr)
@@ -104,6 +109,18 @@ class ZfsBackupCli:
         with self._cfg.cache as cache:
             cache.update_tables()
         self._log.info("Done!")
+
+    def list(self):
+        typ = self._args.type.lower()
+        if typ == "jobs":
+            for job in self._cfg.jobs:
+                self._log.info("%s.%s", job.type, job.name)
+        elif typ == "jobsets":
+            for name, jobs in self._cfg.jobsets:
+                self._log.info("%s: %s", name, ", ".join(jobs))
+        else:
+            self._log.error("Unknown type to list: %s", self._args.type)
+            exit(1)
 
     def run(self):
         getattr(self, self._args.action)()
