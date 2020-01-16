@@ -216,7 +216,7 @@ class Config:
             arguments = ([] if argcfg is None
                          else list([a.text for a in argcfg.findall("arg")]))
             yield (name, {
-                "command": command,
+                "command": command.text,
                 "args": arguments,
                 "use_sudo": cmd.find("sudo") is not None,
                 "readonly": cmd.find("readonly") is not None,
@@ -347,11 +347,10 @@ class Config:
         for name, command in commands:
             if name == "zfs":
                 self._zfs = command
-                return
-            if name == "sudo":
+            elif name == "sudo":
                 self._sudo = command
-                return
-            self._commands[name] = command
+            else:
+                self._commands[name] = command
 
     def load(self, file: str, really: bool):
         self._really = really
