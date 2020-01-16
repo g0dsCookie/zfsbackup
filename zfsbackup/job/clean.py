@@ -54,7 +54,7 @@ class Clean(JobBase):
                parent: Dataset = None):
         prev = ""
         dataset = dataset.joined
-        parent = parent.joind if parent else dataset.joined
+        parent = parent.joined if parent else dataset
         to_delete = []
         with self.cache as cache:
             snapshots = self.zfs.datasets(dataset=dataset,
