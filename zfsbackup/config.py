@@ -5,6 +5,7 @@ from typing import List, Dict, Union, Tuple
 import xml.etree.ElementTree as ET
 
 from zfsbackup.cache import Cache
+from zfsbackup.runner.command import Command
 from zfsbackup.runner.zfs import ZFS
 from zfsbackup.job import JobBase, JobType, get_constructor
 
@@ -14,14 +15,18 @@ class Config:
         self._zfs: ZFS = None
         # self._zpool = "/usr/bin/zpool"
         self._really = False
+        self._zfs = "/usr/bin/zfs"
+        self._sudo = "/usr/bin/sudo"
         self._cache = "/var/cache/zfsbackup/zfsbackup.sqlite"
         self._lockdir = "/var/lock/zfsbackup"
+        self._commands: Dict[str, Dict] = {}
         self._jobs: Dict[JobType, List[JobBase]] = {}
         self._jobsets: Dict[str, List[Union[JobBase, str]]] = {}
         self._log = logging.getLogger("Config")
 
     @property
-    def zfs(self): return self._zfs
+    def zfs(self): return ZFS(zfs=self._zfs, sudo=self._sudo,
+                              really=self._really)
 
     @property
     def really(self): return self._really
@@ -34,6 +39,16 @@ class Config:
 
     @property
     def lockdir(self): return self._lockdir
+
+    def get_command(self, name):
+        cmd = self._commands.get(name, None)
+        if cmd is None:
+            return None
+        return Command(name=name, cmd=cmd["command"],
+                       args=cmd.get("args", []),
+                       sudo=self._sudo, use_sudo=cmd.get("use_sudo", False),
+                       readonly=cmd.get("readonly", False),
+                       really=self._really)
 
     def list_jobs(self, typ: JobType, names: List[str],
                   no_all=False) -> List[JobBase]:
@@ -177,18 +192,35 @@ class Config:
         lockdir = cfg.find("locks")
         return lockdir.text if lockdir is not None else ""
 
-    def _load_commands(self, cfg: ET.ElementTree) -> List[Tuple[str, str]]:
+    def _load_commands(self, cfg: ET.ElementTree) \
+            -> List[Tuple[str, Union[str, Dict]]]:
         commands = cfg.find("commands")
         if commands is None:
             return
+
         for cmd in commands:
             if cmd.tag == "zfs":
                 yield ("zfs", cmd.text)
-            elif cmd.tag == "sudo":
+                continue
+            if cmd.tag == "sudo":
                 yield ("sudo", cmd.text)
-            else:
-                self._log.debug("Ignoring extra command '%s'",
-                                cmd.attrib["name"])
+                continue
+
+            name = cmd.attrib["name"]
+            command = cmd.find("command")
+            if command is None:
+                self._log.error("Could not load command %s: Missing <command>",
+                                name)
+
+            argcfg = cmd.find("arguments")
+            arguments = ([] if argcfg is None
+                         else list([a.text for a in argcfg.findall("arg")]))
+            yield (name, {
+                "command": command,
+                "args": arguments,
+                "use_sudo": cmd.find("sudo") is not None,
+                "readonly": cmd.find("readonly") is not None,
+            })
 
     def _load_jobs(self, file: str, cfg: ET.ElementTree) -> List[JobBase]:
         jobs = cfg.find("jobs")
@@ -311,15 +343,21 @@ class Config:
                 continue
             self._append_specific_jobset(file, jobset)
 
+    def _append_commands(self, commands: List[Tuple[str, Union[str, Dict]]]):
+        for name, command in commands:
+            if name == "zfs":
+                self._zfs = command
+                return
+            if name == "sudo":
+                self._sudo = command
+                return
+            self._commands[name] = command
+
     def load(self, file: str, really: bool):
         self._really = really
 
         # we defer jobset parsing till we loaded all jobs
         alljobsets = []
-
-        # defaults
-        zfs = "/usr/bin/zfs"
-        sudo = "/usr/bin/sudo"
 
         files = [file]
         i = 0
@@ -333,18 +371,12 @@ class Config:
             if lockdir:
                 self._lockdir = lockdir
             if cmds:
-                for cmd in cmds:
-                    if cmd[0] == "zfs":
-                        zfs = cmd[1]
-                    elif cmd[0] == "sudo":
-                        sudo = cmd[1]
+                self._append_commands(list(cmds))
             if jobs:
                 self._append_jobs(jobs)
             if js:
                 alljobsets.append((files[i], js))
             i += 1
-
-        self._zfs = ZFS(zfs=zfs, sudo=sudo, really=really)
 
         self._jobset_files: Dict[str, str] = {}
         for (file, jobsets) in alljobsets:

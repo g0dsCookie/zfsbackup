@@ -6,11 +6,13 @@ from typing import Union, List, Dict, Tuple, Any, Callable, IO
 
 
 class RunnerBase(metaclass=abc.ABCMeta):
-    def __init__(self, prog: str, sudo: str, really: bool):
+    def __init__(self, prog: str, sudo: str, really: bool, name: str = None):
         self._prog = prog
         self._sudo = sudo
         self._really = really
-        self._log = logging.getLogger("Runner." + self.__class__.__name__)
+        if not name:
+            name = self.__class__.__name__
+        self._log = logging.getLogger("Runner." + name)
 
     @property
     def really(self): return self._really

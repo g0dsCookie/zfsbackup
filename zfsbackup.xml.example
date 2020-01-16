@@ -8,9 +8,15 @@
         <sudo>/usr/bin/sudo</sudo>
 
         <command name="test" program="/bin/test" sudo="False">
-            <arg>0</arg>
-            <arg>-eq</arg>
-            <arg>0</arg>
+            <command>/bin/test</command>
+            <sudo />
+            <readonly />
+
+            <arguments>
+                <arg>0</arg>
+                <arg>-eq</arg>
+                <arg>0</arg>
+            </arguments>
         </command>
     </commands>
 
