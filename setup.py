@@ -14,18 +14,18 @@ def get_contents(*args):
         return handle.read()
 
 
-contents = get_contents("zfs_backup", "__init__.py")
+contents = get_contents("zfsbackup", "__init__.py")
 metadata = dict(re.findall(r'__([a-z]+)__\s+=\s+[\'"]([^\'"]+)', contents))
 
 
 setup(
-    name="zfs_backup",
+    name="zfsbackup",
     version=metadata["version"],
     description=metadata["desc"],
     author=metadata["author"],
     packages=find_packages(),
     entry_points=dict(console_scripts=[
-        "zfs_backup = zfs_backup.cli:main"
+        "zfsbackup = zfsbackup.cli:main"
     ]),
     install_required=[
         "humanfriendly"
