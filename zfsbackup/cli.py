@@ -38,11 +38,18 @@ class ZfsBackupCli:
             action.add_argument("jobs", metavar="JOB", type=str, nargs="+",
                                 help="Target(s) to run action on")
 
-        action = actions.add_parser("updatedb",
-                                    description="Update SQLite database to "
-                                    + "latest version and exit.")
-        action.add_argument("--no-backup", action="store_true",
-                            help="Do not backup old sqlite before migration.")
+        a_cache = actions.add_parser("cache",
+                                     description="Cache maintenance actions")
+        as_cache = a_cache.add_subparsers(title="action",
+                                          help="Action to execute on cache",
+                                          dest="cacheaction")
+
+        a = as_cache.add_parser("update", description="Update cache")
+        a.add_argument("--no-backup", action="store_true",
+                       help="Do not backup old cache file.")
+        as_cache.add_parser("list-snapshots",
+                            description="List recorded snapshots")
+        as_cache.add_parser("maint", description="Run maintenance jobs")
 
         action = actions.add_parser("list",
                                     description="List all defined jobs(ets).")
@@ -53,6 +60,10 @@ class ZfsBackupCli:
         if not self._args.action:
             print("No action given.", file=sys.stderr)
             parser.print_help()
+            exit(1)
+        if self._args.action == "cache" and not self._args.cacheaction:
+            print("No cache action given.", file=sys.stderr)
+            a_cache.print_help()
             exit(1)
 
         logging.basicConfig(
@@ -94,7 +105,22 @@ class ZfsBackupCli:
                 continue
             job.run(now=now)
 
-    def updatedb(self):
+    def list(self):
+        typ = self._args.type.lower()
+        if typ == "jobs":
+            for job in self._cfg.jobs:
+                self._log.info("%s.%s", job.type, job.name)
+        elif typ == "jobsets":
+            for name, jobs in self._cfg.jobsets:
+                self._log.info("%s: %s", name, ", ".join(jobs))
+        else:
+            self._log.error("Unknown type to list: %s", self._args.type)
+            exit(1)
+
+    def cache(self):
+        getattr(self, "cache_" + self._args.cacheaction.replace("-", "_"))()
+
+    def cache_update(self):
         bak = self._cfg.cache_path + ".bak"
         if not self._args.no_backup:
             if os.path.exists(bak):
@@ -110,20 +136,20 @@ class ZfsBackupCli:
             cache.update_tables()
         self._log.info("Done!")
 
-    def list(self):
-        typ = self._args.type.lower()
-        if typ == "jobs":
-            for job in self._cfg.jobs:
-                self._log.info("%s.%s", job.type, job.name)
-        elif typ == "jobsets":
-            for name, jobs in self._cfg.jobsets:
-                self._log.info("%s: %s", name, ", ".join(jobs))
-        else:
-            self._log.error("Unknown type to list: %s", self._args.type)
-            exit(1)
+    def cache_list_snapshots(self):
+        with self._cfg.cache as cache:
+            snapshots = cache.snapshots()
+            for dataset in sorted(snapshots):
+                for snapshot in sorted(snapshots[dataset]):
+                    self._log.info("%s@%s: %s", dataset, snapshot,
+                                   snapshots[dataset][snapshot])
+
+    def cache_maint(self):
+        with self._cfg.cache as cache:
+            cache.snapshots_cleanup()
 
     def run(self):
-        getattr(self, self._args.action)()
+        getattr(self, self._args.action.replace("-", "_"))()
 
 
 def main():

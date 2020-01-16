@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+from typing import Dict
 
 
 class Cache:
@@ -96,6 +97,21 @@ class Cache:
             version = 0
         for migration in self.MIGRATIONS[version:]:
             self._db.executescript(migration)
+
+    def snapshots(self) -> Dict[str, Dict[str, int]]:
+        result = {}
+        cur = self._db.cursor()
+        cur.execute("SELECT dataset, snapshot, count FROM keep_snapshots")
+        for dataset, snapshot, count in cur.fetchall():
+            if dataset not in result:
+                result[dataset] = {}
+            result[dataset][snapshot] = count
+        return result
+
+    def snapshots_cleanup(self):
+        cur = self._db.cursor()
+        cur.execute("DELETE FROM keep_snapshots WHERE count <= 0")
+        cur.fetchall()
 
     def snapshot_keep(self, dataset: str, snapshot: str) -> int:
         cur = self._db.cursor()
