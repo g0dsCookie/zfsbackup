@@ -50,9 +50,11 @@ class Clean(JobBase):
 
     @lock_dataset(target="dataset", timeout=30)
     def _clean(self, dataset: Dataset,
-               keep_until: datetime.datetime):
+               keep_until: datetime.datetime,
+               parent: Dataset = None):
         prev = ""
         dataset = dataset.joined
+        parent = parent.joind if parent else dataset.joined
         to_delete = []
         with self.cache as cache:
             snapshots = self.zfs.datasets(dataset=dataset,
@@ -70,7 +72,7 @@ class Clean(JobBase):
                                   dataset, prev, dataset, name)
                     to_delete.append(prev)
 
-                snapshot_copy_count = cache.snapshot_keep(dataset, name)
+                snapshot_copy_count = cache.snapshot_keep(parent, name)
                 self.log.debug("%s@%s has a total copy count of %d",
                                dataset, name, snapshot_copy_count)
                 if snapshot_copy_count > 0:
@@ -105,7 +107,8 @@ class Clean(JobBase):
                                              recurse=True, options=["name"],
                                              sort="name"):
                 self._clean(dataset=Dataset(dataset=dataset["name"]),
-                            keep_until=now - self.keep)
+                            keep_until=now - self.keep,
+                            parent=self.dataset.joined)
         else:
             self._clean(dataset=self.dataset,
                         keep_until=now - self.keep)
