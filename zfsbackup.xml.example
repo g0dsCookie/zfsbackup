@@ -7,7 +7,7 @@
         <!--<zpool>/usr/bin/zpool</zpool>-->
         <sudo>/usr/bin/sudo</sudo>
 
-        <command name="test" program="/bin/test" sudo="False">
+        <command name="test">
             <command>/bin/test</command>
             <sudo />
             <readonly />
