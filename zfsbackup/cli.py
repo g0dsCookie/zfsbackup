@@ -16,7 +16,11 @@ class ZfsBackupCli:
                             default="/etc/zfsbackup/zfsbackup.xml",
                             help="Set path to config file. (%(default)s)")
         parser.add_argument("--debug", action="store_true",
-                            help="Enable debug output.")
+                            help="Enable debug output. (DEPRECATED)")
+        parser.add_argument("--loglevel", type=str, default="INFO",
+                            choices=["DEBUG", "INFO", "WARN", "WARNING",
+                                     "ERROR", "CRITICAL"],
+                            help="Set log level")
         parser.add_argument("-r", "--really", action="store_true",
                             help="Really execute critical commands.")
 
@@ -68,7 +72,7 @@ class ZfsBackupCli:
 
         logging.basicConfig(
             format="%(asctime)-15s %(name)s [%(levelname)s]: %(message)s",
-            level=logging.DEBUG if self._args.debug else logging.INFO
+            level=logging.DEBUG if self._args.debug else self._args.loglevel
         )
         self._log = logging.getLogger("zfsbackup")
 
