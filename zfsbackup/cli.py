@@ -13,7 +13,7 @@ class ZfsBackupCli:
     def __init__(self):
         parser = argparse.ArgumentParser(description="ZFS backup utility.")
         parser.add_argument("-c", "--config", type=str,
-                            default="zfsbackup.xml",
+                            default="/etc/zfsbackup/zfsbackup.xml",
                             help="Set path to config file. (%(default)s)")
         parser.add_argument("--debug", action="store_true",
                             help="Enable debug output.")
