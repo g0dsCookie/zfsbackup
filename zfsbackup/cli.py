@@ -83,7 +83,7 @@ class ZfsBackupCli:
             with self._cfg.cache as cache:
                 if not cache.is_current:
                     self._log.critical("Cache update is needed!")
-                    self._log.critical("Use 'zfsbackup updatedb'" +
+                    self._log.critical("Use 'zfsbackup cache update'" +
                                        " to update cache")
                     exit(1)
 
