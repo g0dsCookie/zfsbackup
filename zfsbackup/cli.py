@@ -11,7 +11,8 @@ from zfsbackup.job.base import JobType
 
 class ZfsBackupCli:
     def __init__(self):
-        parser = argparse.ArgumentParser(description="ZFS backup utility.")
+        parser = argparse.ArgumentParser(prog="zfsbackup",
+                                         description="ZFS backup utility.")
         parser.add_argument("-c", "--config", type=str,
                             default="/etc/zfsbackup/zfsbackup.xml",
                             help="Set path to config file. (%(default)s)")
