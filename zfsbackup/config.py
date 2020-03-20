@@ -4,10 +4,10 @@ import os
 from typing import List, Dict, Union, Tuple
 import xml.etree.ElementTree as ET
 
-from zfsbackup.cache import Cache
-from zfsbackup.runner.command import Command
-from zfsbackup.runner.zfs import ZFS
-from zfsbackup.job import JobBase, JobType, get_constructor
+from .cache import Cache
+from .runner.command import Command
+from .runner.zfs import ZFS
+from .job import JobBase, JobType, get_constructor
 from .events import EventRunner
 
 

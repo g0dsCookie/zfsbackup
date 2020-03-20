@@ -1,9 +1,9 @@
 import datetime
 import xml.etree.ElementTree as ET
 
-from zfsbackup.helpers import missing_option
-from zfsbackup.job.base import JobBase, JobType
-from zfsbackup.models.dataset import Dataset
+from .base import JobBase, JobType
+from ..helpers import missing_option
+from ..models.dataset import Dataset
 
 
 class Snapshot(JobBase):

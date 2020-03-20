@@ -3,9 +3,9 @@ import xml.etree.ElementTree as ET
 
 import dateutil.relativedelta as RD
 
-from zfsbackup.helpers import missing_option
-from zfsbackup.job.base import JobBase, JobType, lock_dataset
-from zfsbackup.models.dataset import Dataset
+from . import JobBase, JobType, lock_dataset
+from ..helpers import missing_option
+from ..models.dataset import Dataset
 
 
 class Clean(JobBase):

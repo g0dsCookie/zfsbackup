@@ -1,8 +1,8 @@
 import xml.etree.ElementTree as ET
 
-from zfsbackup.job.base import JobBase, JobType, lock_dataset
-from zfsbackup.helpers import missing_option
-from zfsbackup.models.dataset import Dataset, DestinationDataset
+from . import JobBase, JobType, lock_dataset
+from ..helpers import missing_option
+from ..models.dataset import Dataset, DestinationDataset
 
 
 class Copy(JobBase):

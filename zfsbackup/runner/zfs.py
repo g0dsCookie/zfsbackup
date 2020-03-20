@@ -2,7 +2,7 @@ import os
 from subprocess import Popen, PIPE
 from typing import List, Dict, Union
 
-from zfsbackup.runner.base import RunnerBase
+from .base import RunnerBase
 
 
 class ZFS(RunnerBase):

@@ -5,8 +5,8 @@ import os
 import shutil
 import sys
 
-from zfsbackup.config import Config
-from zfsbackup.job.base import JobType
+from .config import Config
+from .job.base import JobType
 
 
 class ZfsBackupCli:

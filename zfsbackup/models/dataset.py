@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 
-from zfsbackup.helpers import missing_attribute
-from zfsbackup.runner.zfs import ZFS
+from ..helpers import missing_attribute
+from ..runner.zfs import ZFS
 
 
 class Dataset:

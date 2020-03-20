@@ -1,7 +1,7 @@
-from zfsbackup.job.base import JobBase, JobType
-from zfsbackup.job.clean import Clean
-from zfsbackup.job.copy import Copy
-from zfsbackup.job.snapshot import Snapshot
+from .base import JobBase, JobType
+from .clean import Clean
+from .copy import Copy
+from .snapshot import Snapshot
 
 
 _ctors = dict({t: globals()[t.name.capitalize()] for t in JobType})

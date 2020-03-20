@@ -7,9 +7,9 @@ from typing import Dict
 
 import filelock
 
-from zfsbackup.cache import Cache
-from zfsbackup.runner.zfs import ZFS
-from zfsbackup.models.dataset import Dataset
+from ..cache import Cache
+from ..runner.zfs import ZFS
+from ..models.dataset import Dataset
 
 
 class JobType(Enum):
