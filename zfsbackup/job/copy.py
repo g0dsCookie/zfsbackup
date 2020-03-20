@@ -59,9 +59,29 @@ class Copy(JobBase):
                              overwrites=destination.overwrite_properties,
                              ignores=destination.ignore_properties)
 
+    def _before_copy(self) -> bool:
+        args = {
+            "source": self.source.joined,
+            "destination": self.destination.joined,
+        }
+        return self.globalCfg.events.run("before_copy", args=args) == 0
+
+    def _after_copy(self, source_snap, dest_snap) -> bool:
+        args = {
+            "source": self.source.joined,
+            "source_snapshot": source_snap,
+            "destination": self.destination.joined,
+            "destination_snapshot": dest_snap,
+        }
+        return self.globalCfg.events.run("after_copy", args=args) == 0
+
     def run(self, *args, **kwargs):
         self.log.info("Copying %s to %s",
                       self.source.joined, self.destination.joined)
+
+        if not self._before_copy():
+            self._log.error("before_copy event failed")
+            return
 
         if not self._check_dataset(self.source.joined,
                                    msg="Source dataset '%s' does not exist!"):
@@ -143,3 +163,6 @@ class Copy(JobBase):
             with self.cache as cache:
                 cache.snapshot_keep_decrease(self.source.joined, dsnap)
                 cache.snapshot_keep_decrease(self.destination.joined, dsnap)
+
+        if not self._after_copy(ssnap, dsnap):
+            self._log.error("after_copy event failed")

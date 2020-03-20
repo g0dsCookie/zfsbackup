@@ -8,6 +8,7 @@ from zfsbackup.cache import Cache
 from zfsbackup.runner.command import Command
 from zfsbackup.runner.zfs import ZFS
 from zfsbackup.job import JobBase, JobType, get_constructor
+from .events import EventRunner
 
 
 class Config:
@@ -15,6 +16,8 @@ class Config:
         self._zfs: ZFS = None
         # self._zpool = "/usr/bin/zpool"
         self._really = False
+        self._eventdir = "/etc/zfsbackup/events.d"
+        self._event_runner: EventRunner = None
         self._zfs = "/usr/bin/zfs"
         self._sudo = "/usr/bin/sudo"
         self._cache = "/var/cache/zfsbackup/zfsbackup.sqlite"
@@ -51,6 +54,9 @@ class Config:
 
     @property
     def lockdir(self): return self._lockdir
+
+    @property
+    def events(self): return self._event_runner
 
     def get_command(self, name):
         cmd = self._commands.get(name, None)
@@ -204,6 +210,10 @@ class Config:
         lockdir = cfg.find("locks")
         return lockdir.text if lockdir is not None else ""
 
+    def _load_eventdir(self, cfg: ET.ElementTree) -> str:
+        eventdir = cfg.find("events")
+        return eventdir.text if eventdir is not None else ""
+
     def _load_commands(self, cfg: ET.ElementTree) \
             -> List[Tuple[str, Union[str, Dict]]]:
         commands = cfg.find("commands")
@@ -261,6 +271,7 @@ class Config:
         return (self._load_include(root),
                 self._load_cache(root),
                 self._load_lockdir(root),
+                self._load_eventdir(root),
                 self._load_commands(root),
                 self._load_jobs(file, root),
                 self._load_jobsets(root))
@@ -373,7 +384,8 @@ class Config:
         files = [file]
         i = 0
         while i < len(files):
-            (inc, cache, lockdir, cmds, jobs, js) = self._load_file(files[i])
+            (inc, cache, lockdir, eventdir,
+             cmds, jobs, js) = self._load_file(files[i])
             if inc:
                 files.extend([f for f in glob.iglob(inc, recursive=True)
                               if os.path.isfile(f)])
@@ -381,6 +393,8 @@ class Config:
                 self._cache = cache
             if lockdir:
                 self._lockdir = lockdir
+            if eventdir:
+                self._eventdir = eventdir
             if cmds:
                 self._append_commands(list(cmds))
             if jobs:
@@ -393,3 +407,5 @@ class Config:
         for (file, jobsets) in alljobsets:
             self._append_jobsets(file, jobsets)
         del self._jobset_files
+
+        self._event_runner = EventRunner(self._eventdir, self._really)
