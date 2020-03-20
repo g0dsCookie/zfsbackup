@@ -94,11 +94,27 @@ class Clean(JobBase):
         for snapshot in to_delete:
             self.zfs.destroy(dataset, snapshot)
 
+    def _before(self):
+        args = {
+            "dataset": self.dataset.joined,
+        }
+        return self.globalCfg.events.run("before_clean", args=args) == 0
+
+    def _after(self):
+        args = {
+            "dataset": self.dataset.joined,
+        }
+        return self.globalCfg.events.run("after_clean", args=args) == 0
+
     def run(self, now: datetime.datetime, *args, **kwargs):
         if not self.enabled:
             return
 
         self.log.info("Cleaning snapshots of %s", self.dataset.joined)
+        if not self._before():
+            self._log.error("before event failed")
+            return
+
         if not self._check_dataset(self.dataset.joined):
             return
 
@@ -112,3 +128,7 @@ class Clean(JobBase):
         else:
             self._clean(dataset=self.dataset,
                         keep_until=now - self.keep)
+
+        if not self._after():
+            self._log.error("after event failed")
+            return
