@@ -5,6 +5,11 @@ import re
 from setuptools import setup, find_packages
 
 
+def requirements():
+    with open("requirements.txt", "r") as f:
+        return [l.rstrip() for l in f.readlines()]
+
+
 def abspath(*args):
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), *args)
 
@@ -27,7 +32,5 @@ setup(
     entry_points=dict(console_scripts=[
         "zfsbackup = zfsbackup.cli:main"
     ]),
-    install_required=[
-        "humanfriendly"
-    ]
+    install_required=list(requirements())
 )
